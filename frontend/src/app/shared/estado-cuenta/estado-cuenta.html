@@ -1,0 +1,126 @@
+@if (loading && !data) {
+  <div class="loading-state"><span class="spinner dark"></span> Cargando estado de cuenta...</div>
+} @else if (data; as d) {
+
+  <div class="ec-totales">
+    <div class="ec-tot"><span>Pagado</span><strong class="ok">{{ q(d.totales.pagado) }}</strong></div>
+    <div class="ec-tot"><span>Cuotas pendientes</span><strong>{{ q(d.totales.pendiente) }}</strong></div>
+    <div class="ec-tot"><span>Mora a la fecha</span><strong [class.mal]="d.totales.mora">{{ q(d.totales.mora) }}</strong></div>
+    <div class="ec-tot"><span>Saldo vencido</span><strong [class.mal]="d.totales.vencido">{{ q(d.totales.vencido) }}</strong></div>
+    <div class="ec-tot total"><span>Saldo total</span><strong>{{ q(d.totales.saldo) }}</strong></div>
+  </div>
+
+  <div class="ec-bar">
+    <div class="seg-filter">
+      <button type="button" [class.active]="filtro === 'todos'" (click)="filtro = 'todos'">Todas ({{ d.cargos.length }})</button>
+      <button type="button" [class.active]="filtro === 'pendientes'" (click)="filtro = 'pendientes'">Pendientes ({{ contar('Pendiente') }})</button>
+      <button type="button" [class.active]="filtro === 'pagados'" (click)="filtro = 'pagados'">Pagadas ({{ contar('Pagado') }})</button>
+    </div>
+    <div class="ec-acciones">
+      @if (puedeEditar && d.disponibles.length) {
+        <button type="button" class="btn-col outline sm" (click)="abrirAgregar()" title="Cuotas del grado que no están en este estado de cuenta">+ Agregar cuotas</button>
+      }
+      <button type="button" class="btn-col outline sm" (click)="imprimir()" [disabled]="imprimiendo">
+        @if (imprimiendo) { <span class="spinner dark"></span> }
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Imprimir
+      </button>
+      @if (puedeCobrar && contar('Pendiente')) {
+        <button type="button" class="btn-col primary sm" (click)="cobrar()">Cobrar</button>
+      }
+    </div>
+  </div>
+
+  @if (agregando; as sel) {
+    <div class="ec-agregar">
+      <div class="ec-agregar-tit">Agregar al estado de cuenta</div>
+      @for (c of d.disponibles; track c.idcuotas_ciclos) {
+        <label class="ec-agregar-item">
+          <input type="checkbox" [checked]="sel.has(c.idcuotas_ciclos)" (change)="toggleAgregar(c.idcuotas_ciclos)"/>
+          <span><strong>{{ c.cuota }}</strong> {{ c.obligatoria ? '' : '(opcional)' }}</span>
+          <span class="muted">{{ c.cobros > 1 ? c.cobros + ' cobros de ' : '' }}{{ q(c.monto) }}</span>
+        </label>
+      }
+      <span class="field-hint">Se agregan todos los cobros del ciclo; anule los meses que no correspondan.</span>
+      <div class="ec-agregar-act">
+        <button type="button" class="btn-col ghost sm" (click)="agregando = null">Cancelar</button>
+        <button type="button" class="btn-col primary sm" [disabled]="!sel.size || guardando" (click)="guardarAgregar()">
+          @if (guardando) { <span class="spinner"></span> } Agregar
+        </button>
+      </div>
+    </div>
+  }
+
+  <div class="table-scroll-wrap ec-wrap">
+    <table class="col-table ec-table">
+      <thead>
+        <tr>
+          <th>Cuota</th>
+          <th>Vence</th>
+          <th class="num">Monto</th>
+          <th class="num">Mora</th>
+          <th>Estado</th>
+          <th>Pagada el</th>
+          <th>Recibo</th>
+          @if (puedeEditar) { <th></th> }
+        </tr>
+      </thead>
+      <tbody>
+        @for (c of cargos; track c.idinscripciones_cargos) {
+          <tr [class.anulado]="c.estado === 'Anulado'" [class.vencido]="c.estado === 'Pendiente' && c.vencido">
+            <td>
+              {{ c.concepto }}
+              @if (c.estado === 'Anulado' && c.motivo_anulacion) { <div class="ec-sub">{{ c.motivo_anulacion }}</div> }
+            </td>
+            <td class="nowrap">{{ fecha(c.fecha_vencimiento) }}</td>
+            <td class="num nowrap">{{ q(c.monto) }}</td>
+            <td class="num nowrap">
+              @if (c.estado === 'Pagado') {
+                @if (c.mora_exonerada) { <span class="muted" title="Mora exonerada">Exon.</span> }
+                @else if (c.mora_pagada) { {{ q(c.mora_pagada) }} }
+              } @else if (c.estado === 'Pendiente' && c.mora_actual) {
+                <span class="mal">{{ q(c.mora_actual) }}</span>
+              }
+            </td>
+            <td>
+              @switch (c.estado) {
+                @case ('Pagado') { <span class="badge success">Pagada</span> }
+                @case ('Anulado') { <span class="badge neutral">Anulada</span> }
+                @default {
+                  @if (c.vencido) { <span class="badge danger">Vencida</span> } @else { <span class="badge warning">Pendiente</span> }
+                }
+              }
+            </td>
+            <td class="nowrap">
+              @if (c.fecha_pago) { <span class="ec-check">✓</span> {{ fecha(c.fecha_pago) }} }
+            </td>
+            <td class="nowrap">
+              @if (c.recibo) {
+                @if (puedeVerRecibo) { <button type="button" class="ec-link" (click)="verRecibo(c)">{{ recibo(c.recibo) }}</button> }
+                @else { {{ recibo(c.recibo) }} }
+              }
+            </td>
+            @if (puedeEditar) {
+              <td class="nowrap">
+                @if (c.estado === 'Pendiente') {
+                  <button type="button" class="ec-mini" title="Anular esta cuota (beca, ingreso a medio año...)" (click)="anularCargo(c)">Anular</button>
+                } @else if (c.estado === 'Anulado') {
+                  <button type="button" class="ec-mini" (click)="restaurarCargo(c)">Restaurar</button>
+                }
+              </td>
+            }
+          </tr>
+        } @empty {
+          <tr><td [attr.colspan]="puedeEditar ? 8 : 7">
+            <div class="empty-state">
+              <p>
+                @if (d.cargos.length) { No hay cuotas con este filtro. }
+                @else { La inscripción no tiene cuotas. Configure los montos del grado en Finanzas › Cuotas y luego use “Agregar cuotas”. }
+              </p>
+            </div>
+          </td></tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

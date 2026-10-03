@@ -1,0 +1,26 @@
+.pc-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+
+  &.compacto { gap: 12px; }
+}
+
+.mono { font-variant-numeric: tabular-nums; letter-spacing: .3px; }
+
+.inh-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--clr-primary-dim);
+  color: var(--clr-primary-dk);
+  font-size: 9.5px;
+  letter-spacing: .3px;
+  text-transform: none;
+  font-weight: 700;
+}
+
+.col-label {
+  display: flex;
+  align-items: center;
+}

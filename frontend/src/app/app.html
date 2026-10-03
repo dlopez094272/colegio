@@ -1,0 +1,32 @@
+<div class="app-shell" [class.app-no-shell]="!showShell">
+  @if (showShell && !layout.sidebarHidden()) {
+    <app-sidebar></app-sidebar>
+    @if (layout.mobileOpen()) {
+      <div class="mobile-backdrop" (click)="layout.closeMobile()"></div>
+    }
+  }
+  <div class="main-content" [class.sidebar-collapsed]="showShell && layout.collapsed()" [class.sidebar-hidden-full]="layout.sidebarHidden()">
+    @if (showShell) {
+      <app-navbar></app-navbar>
+    }
+    <div class="page-body" [class.page-full]="!showShell">
+      <router-outlet></router-outlet>
+    </div>
+  </div>
+</div>
+
+@if (showShell) {
+  @if (showWarning) {
+    <app-session-warning></app-session-warning>
+  }
+  @if (showPrimer) {
+    <app-cambiar-password></app-cambiar-password>
+  }
+}
+
+@if (appUpdate.updateAvailable()) {
+  <div class="update-banner">
+    <span>Hay una nueva versión disponible.</span>
+    <button class="btn-col primary" (click)="appUpdate.reload()">Actualizar ahora</button>
+  </div>
+}

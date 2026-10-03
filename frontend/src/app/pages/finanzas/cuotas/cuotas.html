@@ -1,0 +1,525 @@
+<div class="page-header">
+  <div>
+    <h1>
+      <span class="h1-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="9" cy="6" rx="6" ry="3"/><path d="M3 6v4c0 1.66 2.69 3 6 3s6-1.34 6-3V6"/><path d="M3 10v4c0 1.66 2.69 3 6 3 1 0 1.94-.12 2.77-.34"/><ellipse cx="17" cy="15" rx="5" ry="2.5"/><path d="M12 15v3.5c0 1.38 2.24 2.5 5 2.5s5-1.12 5-2.5V15"/></svg>
+      </span>
+      Cuotas
+    </h1>
+    <p class="page-subtitle">Cuotas del colegio por ciclo escolar: fechas de cobro, mora y monto de cada grado.</p>
+  </div>
+  <div class="header-actions">
+    <label class="cu-ciclo">
+      <span>Ciclo</span>
+      <select class="col-input" [ngModel]="ciclo" (ngModelChange)="cambiarCiclo(+$event)">
+        @for (o of opcionesCiclo; track o.ciclo) {
+          <option [ngValue]="o.ciclo">{{ o.ciclo }}{{ o.cuotas ? ' · ' + o.cuotas + ' cuota' + (o.cuotas > 1 ? 's' : '') : ' · sin cuotas' }}</option>
+        }
+      </select>
+    </label>
+    @if (puedeA && ciclosConDatos.length) {
+      <button class="btn-col outline" type="button" (click)="abrirCopiar()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1"/></svg>
+        Copiar ciclo
+      </button>
+    }
+  </div>
+</div>
+
+<div class="cu-tabs">
+  <button type="button" [class.active]="tab === 'ciclo'" (click)="setTab('ciclo')">Cuotas del ciclo {{ ciclo }}</button>
+  <button type="button" [class.active]="tab === 'montos'" (click)="setTab('montos')">Montos por grado</button>
+  <button type="button" [class.active]="tab === 'catalogo'" (click)="setTab('catalogo')">Catálogo de cuotas</button>
+</div>
+
+@if (tab === 'catalogo') {
+
+  <!-- ═════════════ CATÁLOGO ═════════════ -->
+  <div class="cu-bar">
+    <p class="muted">Cuotas que maneja el colegio. Son globales: se agregan a cada ciclo y ahí se define el monto de cada grado.</p>
+    @if (puedeA) { <button class="btn-col primary" type="button" (click)="nuevaCuota()">+ Nueva cuota</button> }
+  </div>
+  <div class="col-card cu-table-card">
+    <table class="col-table">
+      <thead>
+        <tr>
+          <th class="row-menu-col"></th>
+          <th>Cuota</th>
+          <th>Cobro</th>
+          <th>Tipo</th>
+          <th>Ciclos</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (c of catalogo; track c.idcuotas) {
+          <tr>
+            <td class="row-menu-col"><app-row-menu [actions]="accionesCuota(c)"></app-row-menu></td>
+            <td>
+              <strong>{{ c.cuota }}</strong>
+              @if (c.descripcion) { <div class="cu-sub">{{ c.descripcion }}</div> }
+            </td>
+            <td>{{ c.periodicidad === 'Mensual' ? 'Mensual' : 'Una vez' }}</td>
+            <td>
+              @if (c.obligatoria) { <span class="chip">Obligatoria</span> } @else { <span class="chip accent">Opcional</span> }
+            </td>
+            <td>{{ c.total_ciclos || 0 }}</td>
+            <td>@if (c.activo) { <span class="badge success">Activa</span> } @else { <span class="badge danger">Inactiva</span> }</td>
+          </tr>
+        } @empty {
+          <tr><td colspan="6"><div class="empty-state"><p>No hay cuotas registradas.</p></div></td></tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+} @else if (loading && !data) {
+  <div class="col-card"><div class="loading-state"><span class="spinner dark"></span> Cargando...</div></div>
+} @else if (data && !data.cuotas.length) {
+
+  <!-- ═════════════ CICLO VACÍO ═════════════ -->
+  <div class="col-card cu-vacio">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+    <h3>El ciclo {{ ciclo }} aún no tiene cuotas</h3>
+    @if (puedeA) {
+      <p class="muted">
+        @if (cicloSugeridoOrigen) { Puede copiar las cuotas y montos del ciclo {{ cicloSugeridoOrigen }} (con ajuste opcional) o agregarlas una por una. }
+        @else { Agregue la inscripción, la mensualidad y las demás cuotas que cobrará el colegio este ciclo. }
+      </p>
+      <div class="cu-vacio-actions">
+        @if (cicloSugeridoOrigen) {
+          <button class="btn-col primary" type="button" (click)="abrirCopiar()">Copiar desde {{ cicloSugeridoOrigen }}</button>
+        }
+        <button class="btn-col" [class.primary]="!cicloSugeridoOrigen" [class.outline]="!!cicloSugeridoOrigen" type="button" (click)="nuevaConfig()">+ Agregar cuota</button>
+      </div>
+    } @else {
+      <p class="muted">No tiene permiso para configurar cuotas.</p>
+    }
+  </div>
+
+} @else if (data && tab === 'ciclo') {
+
+  <!-- ═════════════ CUOTAS DEL CICLO ═════════════ -->
+  <div class="cu-bar">
+    <p class="muted">Fechas de cobro, día límite y mora de cada cuota en el ciclo {{ ciclo }}.</p>
+    @if (puedeA) {
+      <button class="btn-col primary" type="button" (click)="nuevaConfig()" [disabled]="!cuotasDisponibles.length"
+              [title]="cuotasDisponibles.length ? 'Agregar una cuota del catálogo a este ciclo' : 'Todas las cuotas activas ya están en el ciclo'">+ Agregar cuota</button>
+    }
+  </div>
+  <div class="col-card cu-table-card">
+    <div class="table-scroll-wrap">
+      <table class="col-table">
+        <thead>
+          <tr>
+            <th class="row-menu-col"></th>
+            <th>Cuota</th>
+            <th>Cobro</th>
+            <th>Período</th>
+            <th>Vence</th>
+            <th>Mora</th>
+            <th>Grados</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (c of data.cuotas; track c.idcuotas_ciclos) {
+            <tr>
+              <td class="row-menu-col"><app-row-menu [actions]="accionesConfig(c)"></app-row-menu></td>
+              <td>
+                <strong>{{ c.cuota }}</strong>
+                @if (!c.obligatoria) { <span class="chip accent cu-ml">Opcional</span> }
+                @if (!c.cuota_activa) { <span class="badge danger cu-ml">Inactiva</span> }
+              </td>
+              <td class="nowrap">
+                @if (c.periodicidad === 'Mensual') { Mensual <span class="muted">· {{ cobros(c) }} cobros</span> } @else { Una vez }
+              </td>
+              <td class="nowrap">{{ fecha(c.fecha_inicio) }} – {{ fecha(c.fecha_fin) }}</td>
+              <td class="nowrap">{{ textoVence(c) }}</td>
+              <td class="nowrap" [class.muted]="c.mora_tipo === 'Ninguna'">{{ textoMora(c) }}</td>
+              <td>
+                @if (c.total_grados) { {{ c.total_grados }} } @else { <span class="badge danger">Ninguno</span> }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+} @else if (data && tab === 'montos') {
+
+  <!-- ═════════════ MONTOS POR GRADO ═════════════ -->
+  <div class="cu-bar">
+    <p class="muted">
+      Escriba el monto de cada cuota por grado. <b>Vacío = la cuota no aplica a ese grado.</b>
+      Los montos mensuales son por cobro; el total anual suma solo las cuotas obligatorias.
+    </p>
+    @if (puedeE) {
+      <div class="cu-save">
+        @if (cambiosPendientes.length; as n) {
+          <span class="cu-pend">{{ n }} cambio{{ n > 1 ? 's' : '' }} sin guardar</span>
+          <button class="btn-col ghost sm" type="button" (click)="restaurarMontos()" [disabled]="guardandoMontos">Descartar</button>
+        }
+        <button class="btn-col primary" type="button" (click)="guardarMontos()" [disabled]="!cambiosPendientes.length || guardandoMontos">
+          @if (guardandoMontos) { <span class="spinner"></span> } Guardar montos
+        </button>
+      </div>
+    }
+  </div>
+
+  @if (!grupos.length) {
+    <div class="col-card"><div class="empty-state"><p>No hay grados activos. Créelos primero en Estructura académica.</p></div></div>
+  } @else {
+    <div class="col-card cu-table-card">
+      <div class="table-scroll-wrap cu-matriz-wrap">
+        <table class="col-table cu-matriz">
+          <thead>
+            <tr>
+              <th class="cu-grado-col">Grado</th>
+              @for (cfg of data.cuotas; track cfg.idcuotas_ciclos) {
+                <th class="cu-monto-col">
+                  <div class="cu-th">
+                    <span>{{ cfg.cuota }}</span>
+                    @if (puedeE) {
+                      <button type="button" class="cu-th-btn" title="Aplicar un monto a varios grados" (click)="abrirLlenar(cfg)">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                      </button>
+                    }
+                  </div>
+                  <div class="cu-th-sub">
+                    {{ cfg.periodicidad === 'Mensual' ? cobros(cfg) + ' cobros' : 'Una vez' }}{{ cfg.obligatoria ? '' : ' · opcional' }}
+                  </div>
+                </th>
+              }
+              <th class="cu-total-col">Total anual</th>
+              @if (puedeE) { <th class="cu-act-col"></th> }
+            </tr>
+          </thead>
+          <tbody>
+            @for (gr of grupos; track gr.titulo) {
+              <tr class="cu-grupo">
+                <td [attr.colspan]="data.cuotas.length + (puedeE ? 3 : 2)">{{ gr.titulo }}</td>
+              </tr>
+              @for (g of gr.grados; track g.idgrados) {
+                <tr [class.inactivo]="!g.activo">
+                  <td class="cu-grado-col">
+                    {{ g.grado }}
+                    @if (!g.activo) { <span class="badge danger cu-ml">Inactivo</span> }
+                  </td>
+                  @for (cfg of data.cuotas; track cfg.idcuotas_ciclos) {
+                    <td class="cu-monto-col">
+                      <div class="cu-cell" [class.cambio]="esCambio(cfg, g)" [class.vacio]="valores[k(cfg, g)] == null">
+                        <span class="cu-q">Q</span>
+                        <input type="number" min="0" step="0.01" [(ngModel)]="valores[k(cfg, g)]"
+                               [disabled]="!puedeE || (!g.activo && valores[k(cfg, g)] == null)"
+                               placeholder="No aplica" [attr.aria-label]="cfg.cuota + ' — ' + nombreGrado(g)"/>
+                      </div>
+                    </td>
+                  }
+                  <td class="cu-total-col">
+                    <strong>{{ q(totalAnual(g)) }}</strong>
+                    @if (totalAnual(g, 0); as opc) { <div class="cu-sub">+ {{ q(opc) }} opcional</div> }
+                  </td>
+                  @if (puedeE) {
+                    <td class="cu-act-col">
+                      <button type="button" class="cu-row-btn" title="Copiar los montos de este grado a otros" (click)="abrirCopiarFila(g)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1"/></svg>
+                      </button>
+                    </td>
+                  }
+                </tr>
+              }
+            }
+          </tbody>
+          <tfoot>
+            <tr>
+              <td class="cu-grado-col">Grados con la cuota</td>
+              @for (cfg of data.cuotas; track cfg.idcuotas_ciclos) {
+                <td class="cu-monto-col">{{ gradosConCuota(cfg) }}</td>
+              }
+              <td></td>
+              @if (puedeE) { <td></td> }
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  }
+}
+
+<!-- ─── Modal: cuota en el ciclo (fechas, día límite, mora) ─── -->
+@if (configForm; as f) {
+  <div class="modal-overlay">
+    <div class="modal-box" style="width:560px" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="configForm = null">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">{{ f.modo === 'nuevo' ? 'Agregar cuota al ciclo' : f.cfg!.cuota }}</div>
+        <div class="modal-sub">Ciclo {{ ciclo }}</div>
+      </div>
+      <form class="modal-form" (ngSubmit)="guardarConfig()">
+        @if (f.modo === 'nuevo') {
+          <div class="field">
+            <label class="col-label">Cuota <span class="req">*</span></label>
+            <select class="col-input" name="idcuotas" [ngModel]="f.idcuotas" (ngModelChange)="elegirCuota($event)">
+              <option [ngValue]="null" disabled>Seleccione…</option>
+              @for (c of cuotasDisponibles; track c.idcuotas) {
+                <option [ngValue]="c.idcuotas">{{ c.cuota }} — {{ c.periodicidad === 'Mensual' ? 'mensual' : 'una vez' }}{{ c.obligatoria ? '' : ', opcional' }}</option>
+              }
+            </select>
+            <span class="field-hint">¿No está en la lista? Créela en la pestaña “Catálogo de cuotas”.</span>
+          </div>
+        }
+
+        @if (periodicidadForm; as p) {
+          <div class="field-row">
+            <div class="field">
+              <label class="col-label">{{ p === 'Mensual' ? 'Primer mes de cobro' : 'Se cobra desde' }} <span class="req">*</span></label>
+              <input class="col-input" type="date" name="fecha_inicio" [(ngModel)]="f.fecha_inicio"/>
+            </div>
+            <div class="field">
+              <label class="col-label">{{ p === 'Mensual' ? 'Último mes de cobro' : 'Fecha límite de pago' }} <span class="req">*</span></label>
+              <input class="col-input" type="date" name="fecha_fin" [(ngModel)]="f.fecha_fin"/>
+            </div>
+          </div>
+
+          @if (p === 'Mensual') {
+            <div class="field" style="max-width:220px">
+              <label class="col-label">Día límite de pago <span class="req">*</span></label>
+              <input class="col-input" type="number" min="1" max="31" name="dia_limite" [(ngModel)]="f.dia_limite"/>
+              <span class="field-hint">Cada mes vence este día (si el mes es más corto, el último día).</span>
+            </div>
+          }
+
+          <div class="field">
+            <label class="col-label">Mora por pago tardío</label>
+            <div class="cu-seg">
+              <button type="button" [class.active]="f.mora_tipo === 'Ninguna'" (click)="f.mora_tipo = 'Ninguna'">Sin mora</button>
+              <button type="button" [class.active]="f.mora_tipo === 'Monto'" (click)="f.mora_tipo = 'Monto'">Monto fijo (Q)</button>
+              <button type="button" [class.active]="f.mora_tipo === 'Porcentaje'" (click)="f.mora_tipo = 'Porcentaje'">Porcentaje (%)</button>
+            </div>
+          </div>
+          @if (f.mora_tipo !== 'Ninguna') {
+            <div class="field" style="max-width:220px">
+              <label class="col-label">{{ f.mora_tipo === 'Monto' ? 'Mora (Q)' : 'Mora (%)' }} <span class="req">*</span></label>
+              <input class="col-input" type="number" min="0" [max]="f.mora_tipo === 'Porcentaje' ? 100 : null" step="0.01" name="mora_valor" [(ngModel)]="f.mora_valor"/>
+              <span class="field-hint">Se suma una vez a cada cobro pagado después de su fecha límite.</span>
+            </div>
+          }
+
+          @if (resumenConfig) { <div class="cu-resumen">{{ resumenConfig }}</div> }
+        }
+
+        @if (error) { <div class="alert-error">{{ error }}</div> }
+        <div class="modal-actions">
+          <button type="button" class="btn-col ghost" (click)="configForm = null">Cancelar</button>
+          <button type="submit" class="btn-col primary" [disabled]="saving || !periodicidadForm">
+            @if (saving) { <span class="spinner"></span> } Guardar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- ─── Modal: copiar ciclo ─── -->
+@if (copiarForm; as f) {
+  <div class="modal-overlay">
+    <div class="modal-box" style="width:520px" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="copiarForm = null">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">Copiar cuotas de un ciclo a otro</div>
+        <div class="modal-sub">Copia las cuotas, sus fechas (corridas al nuevo año), mora y montos por grado</div>
+      </div>
+      <form class="modal-form" (ngSubmit)="copiar()">
+        <div class="field-row">
+          <div class="field">
+            <label class="col-label">Desde el ciclo</label>
+            <select class="col-input" name="origen" [(ngModel)]="f.origen">
+              @for (c of ciclosConDatos; track c.ciclo) { <option [ngValue]="c.ciclo">{{ c.ciclo }} · {{ c.cuotas }} cuota{{ c.cuotas > 1 ? 's' : '' }}</option> }
+            </select>
+          </div>
+          <div class="field">
+            <label class="col-label">Hacia el ciclo <span class="req">*</span></label>
+            <input class="col-input" type="number" min="2000" max="2100" name="destino" [(ngModel)]="f.destino"/>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label class="col-label">Ajuste de montos (%)</label>
+            <input class="col-input" type="number" step="0.5" name="ajuste" [(ngModel)]="f.ajuste" placeholder="0 = mismos montos"/>
+            <span class="field-hint">Ej. 5 sube 5 %; −10 baja 10 %.</span>
+          </div>
+          <div class="field">
+            <label class="col-label">Redondear a</label>
+            <select class="col-input" name="redondeo" [(ngModel)]="f.redondeo">
+              <option [ngValue]="0">Centavos</option>
+              <option [ngValue]="1">Quetzal entero</option>
+              <option [ngValue]="5">Múltiplo de Q5</option>
+              <option [ngValue]="10">Múltiplo de Q10</option>
+            </select>
+          </div>
+        </div>
+        <div class="cu-resumen">
+          Se copiarán las {{ cuotasEnOrigen }} cuota(s) de {{ f.origen }} a {{ f.destino || '?' }}.
+          Las cuotas que ya existan en {{ f.destino || 'el destino' }} y las inactivas no se tocan; los grados inactivos no se copian.
+          Después puede ajustar cualquier monto en “Montos por grado”.
+        </div>
+        @if (error) { <div class="alert-error">{{ error }}</div> }
+        <div class="modal-actions">
+          <button type="button" class="btn-col ghost" (click)="copiarForm = null">Cancelar</button>
+          <button type="submit" class="btn-col primary" [disabled]="saving">
+            @if (saving) { <span class="spinner"></span> } Copiar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- ─── Modal: aplicar monto a una columna ─── -->
+@if (llenarForm; as f) {
+  <div class="modal-overlay">
+    <div class="modal-box" style="width:440px" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="llenarForm = null">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">{{ f.cfg.cuota }} — aplicar monto</div>
+        <div class="modal-sub">Ciclo {{ ciclo }}</div>
+      </div>
+      <form class="modal-form" (ngSubmit)="aplicarLlenar()">
+        <div class="field">
+          <label class="col-label">Grados</label>
+          <select class="col-input" name="grupo" [(ngModel)]="f.grupo">
+            <option value="">Todos los grados</option>
+            @for (gr of grupos; track gr.titulo) { <option [value]="gr.titulo">{{ gr.titulo }}</option> }
+          </select>
+        </div>
+        <div class="field">
+          <label class="col-label">Monto (Q)</label>
+          <input class="col-input" type="number" min="0" step="0.01" name="monto" [(ngModel)]="f.monto" placeholder="Vacío = la cuota deja de aplicar" autofocus/>
+        </div>
+        <span class="field-hint">Se reemplazan los montos de esos grados en la tabla; luego presione “Guardar montos”.</span>
+        <div class="modal-actions">
+          <button type="button" class="btn-col ghost" (click)="llenarForm = null">Cancelar</button>
+          <button type="submit" class="btn-col primary">{{ f.monto == null ? 'Quitar de esos grados' : 'Aplicar' }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- ─── Modal: copiar fila a otros grados ─── -->
+@if (copiarFilaForm; as f) {
+  <div class="modal-overlay">
+    <div class="modal-box" style="width:480px" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="copiarFilaForm = null">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">Copiar montos de {{ f.origen.grado }}</div>
+        <div class="modal-sub">{{ nombreGrado(f.origen) }} · se copian todas las cuotas, incluidas las que no aplican</div>
+      </div>
+      <div class="modal-form">
+        <div class="cu-destinos">
+          @for (gr of grupos; track gr.titulo) {
+            <div class="cu-dest-grupo">
+              <label class="cu-dest-titulo">
+                <input type="checkbox" [checked]="grupoCompleto(gr)" (change)="toggleGrupoDestino(gr)"/>
+                {{ gr.titulo }}
+              </label>
+              <div class="cu-dest-items">
+                @for (g of gr.grados; track g.idgrados) {
+                  @if (g.activo && g.idgrados !== f.origen.idgrados) {
+                    <label class="cu-dest-item">
+                      <input type="checkbox" [checked]="f.destinos.has(g.idgrados)" (change)="toggleDestino(g.idgrados)"/>
+                      {{ g.grado }}
+                    </label>
+                  }
+                }
+              </div>
+            </div>
+          }
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-col ghost" (click)="copiarFilaForm = null">Cancelar</button>
+          <button type="button" class="btn-col primary" [disabled]="!f.destinos.size" (click)="aplicarCopiarFila()">
+            Copiar a {{ f.destinos.size }} grado{{ f.destinos.size === 1 ? '' : 's' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ─── Modal: cuota del catálogo ─── -->
+@if (cuotaForm; as f) {
+  <div class="modal-overlay">
+    <div class="modal-box" style="width:520px" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="cuotaForm = null">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">{{ f.idcuotas ? 'Editar' : 'Nueva' }} cuota</div>
+      </div>
+      <form class="modal-form" (ngSubmit)="guardarCuota()">
+        <div class="field">
+          <label class="col-label">Nombre <span class="req">*</span></label>
+          <input class="col-input" name="cuota" [(ngModel)]="f.cuota" maxlength="100" placeholder="Ej. Bus escolar, Graduación, Material didáctico" autofocus/>
+        </div>
+        <div class="field">
+          <label class="col-label">Descripción</label>
+          <input class="col-input" name="descripcion" [(ngModel)]="f.descripcion" maxlength="255"/>
+        </div>
+        <div class="field">
+          <label class="col-label">Se cobra</label>
+          <div class="cu-seg">
+            <button type="button" [class.active]="f.periodicidad === 'Unica'" (click)="f.periodicidad = 'Unica'">Una vez en el ciclo</button>
+            <button type="button" [class.active]="f.periodicidad === 'Mensual'" (click)="f.periodicidad = 'Mensual'">Mensualmente</button>
+          </div>
+        </div>
+        <label class="switch-wrap">
+          <input type="checkbox" name="obligatoria" [checked]="f.obligatoria === 1" (change)="f.obligatoria = $any($event.target).checked ? 1 : 0"/>
+          <span class="switch-slider"></span>
+          <span class="switch-label">Obligatoria
+            <span class="switch-desc">{{ f.obligatoria ? 'La pagan todos los estudiantes de los grados donde aplica' : 'Opcional: solo la pagan los estudiantes que la tomen (ej. bus, almuerzo)' }}</span>
+          </span>
+        </label>
+        <div class="field" style="max-width:180px">
+          <label class="col-label">Orden</label>
+          <input class="col-input" type="number" min="0" name="orden" [(ngModel)]="f.orden" [placeholder]="f.idcuotas ? '' : 'Al final'"/>
+        </div>
+        <label class="switch-wrap">
+          <input type="checkbox" name="activo" [checked]="f.activo === 1" (change)="f.activo = $any($event.target).checked ? 1 : 0"/>
+          <span class="switch-slider"></span>
+          <span class="switch-label">Activa <span class="switch-desc">Solo las activas se pueden agregar a un ciclo o copiar a uno nuevo</span></span>
+        </label>
+        @if (error) { <div class="alert-error">{{ error }}</div> }
+        <div class="modal-actions">
+          <button type="button" class="btn-col ghost" (click)="cuotaForm = null">Cancelar</button>
+          <button type="submit" class="btn-col primary" [disabled]="saving">
+            @if (saving) { <span class="spinner"></span> } Guardar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+@if (bitacora; as b) {
+  <div class="modal-overlay" style="z-index: 1100" (click)="bitacora = null">
+    <div class="modal-box modal-lg" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="bitacora = null">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">Bitácora — {{ b.titulo }}</div>
+      </div>
+      <app-bitacora-tab [tabla]="b.tabla" [idregistro]="b.id"></app-bitacora-tab>
+    </div>
+  </div>
+}

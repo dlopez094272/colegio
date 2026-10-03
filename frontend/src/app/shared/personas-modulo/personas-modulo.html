@@ -1,0 +1,336 @@
+<!-- ── Encabezado ──────────────────────────────────────────────────── -->
+<div class="page-header">
+  <div>
+    <h1>
+      <span class="h1-icon">
+        @if (esPadres) {
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="6" r="2.5"/><circle cx="17" cy="6" r="2.5"/><circle cx="12" cy="13" r="2"/><path d="M3 21v-6a3 3 0 013-3h2M21 21v-6a3 3 0 00-3-3h-2M9 21v-2a3 3 0 016 0v2"/></svg>
+        } @else {
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 4 2 9l10 5 10-5-10-5z"/><path d="M6 11.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.5" stroke-linecap="round"/></svg>
+        }
+      </span>
+      {{ cfg.titulo }}
+    </h1>
+    <p class="page-subtitle">{{ cfg.subtitulo }}</p>
+  </div>
+  @if (puedeAgregar) {
+    <button class="btn-col primary" (click)="openNew()">+ Nuevo {{ cfg.singular }}</button>
+  }
+</div>
+
+<!-- ── Barra de búsqueda / filtros ─────────────────────────────────── -->
+<div class="col-card list-toolbar">
+  <input class="col-input" type="text" [(ngModel)]="search" (ngModelChange)="onSearch()"
+         [placeholder]="'Buscar por nombre, DPI' + (esPadres ? ', NIT, pasaporte' : '') + ' o teléfono...'"/>
+  <div class="seg-filter">
+    <button [class.active]="estado === '1'" (click)="setEstado('1')">Activos</button>
+    <button [class.active]="estado === '0'" (click)="setEstado('0')">Inactivos</button>
+    <button [class.active]="estado === ''"  (click)="setEstado('')">Todos</button>
+  </div>
+  <span class="toolbar-count">{{ total }} registro{{ total === 1 ? '' : 's' }}</span>
+</div>
+
+<!-- ── Tabla ───────────────────────────────────────────────────────── -->
+<div class="col-card table-card">
+  <div class="table-scroll-wrap">
+    <table class="col-table">
+      <thead>
+        <tr>
+          <th class="row-menu-col"></th>
+          <th appThSort [field]="cfg.pk" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">ID</th>
+          <th appThSort field="nombre_completo" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Nombre completo</th>
+          <th appThSort field="dpi" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">DPI</th>
+          @if (esPadres) {
+            <th appThSort field="nit" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">NIT</th>
+            <th appThSort field="estado_civil" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Estado civil</th>
+          } @else {
+            <th appThSort field="fecha_nacimiento" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Nacimiento</th>
+          }
+          <th appThSort field="telefono_celular" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Celular</th>
+          <th appThSort field="total_vinculos" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">{{ cfg.tituloVinculos }}</th>
+          <th appThSort field="activo" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (loading) {
+          <tr><td [attr.colspan]="esPadres ? 9 : 8"><div class="loading-state"><span class="spinner dark"></span> Cargando...</div></td></tr>
+        } @else {
+          @for (r of rows; track idDe(r)) {
+            <tr (dblclick)="openView(r, 'info')">
+              <td class="row-menu-col" (click)="$event.stopPropagation()">
+                <app-row-menu [actions]="getRowActions(r)"></app-row-menu>
+              </td>
+              <td class="id-col">{{ idDe(r) }}</td>
+              <td>
+                <div class="name-cell">
+                  @if (r.foto) {
+                    <img class="grid-foto" [src]="urlFoto(r.foto)" [alt]="r.nombre_completo" loading="lazy" (click)="openView(r, 'info'); $event.stopPropagation()"/>
+                  } @else {
+                    <span class="mini-avatar" [class.est]="!esPadres">{{ iniciales(r.primer_nombre + ' ' + r.primer_apellido) }}</span>
+                  }
+                  <div>
+                    <strong>{{ r.nombre_completo }}</strong>
+                    @if (r.direccion) { <div class="sub-txt">{{ r.direccion }}</div> }
+                  </div>
+                </div>
+              </td>
+              <td class="nowrap">{{ r.dpi || '—' }}</td>
+              @if (esPadres) {
+                <td class="nowrap">{{ r.nit || '—' }}</td>
+                <td>{{ r.estado_civil || '—' }}</td>
+              } @else {
+                <td class="nowrap">
+                  @if (r.fecha_nacimiento) {
+                    {{ r.fecha_nacimiento | date:'dd/MM/yyyy':'UTC' }} <span class="muted">({{ r.edad }} años)</span>
+                  } @else { — }
+                  @if (r.lugar_nacimiento) { <div class="sub-txt">{{ r.lugar_nacimiento }}</div> }
+                </td>
+              }
+              <td class="nowrap">{{ r.telefono_celular || '—' }}</td>
+              <td>
+                @if (r.total_vinculos) {
+                  <div class="chips">
+                    @for (n of vinculosLista(r).slice(0, 2); track $index) { <span class="chip">{{ n }}</span> }
+                    @if (r.total_vinculos > 2) { <span class="chip accent">+{{ r.total_vinculos - 2 }}</span> }
+                  </div>
+                } @else {
+                  <span class="muted">Sin asignar</span>
+                }
+              </td>
+              <td>
+                @if (r.activo) { <span class="badge success">Activo</span> }
+                @else { <span class="badge danger">Inactivo</span> }
+              </td>
+            </tr>
+          } @empty {
+            <tr><td [attr.colspan]="esPadres ? 9 : 8">
+              <div class="empty-state">
+                <span class="empty-icon">{{ esPadres ? '👪' : '🎓' }}</span>
+                <p>{{ search ? 'Sin resultados para la búsqueda.' : 'No hay registros.' }}</p>
+              </div>
+            </td></tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+  <app-paginator [total]="total" [page]="page" [pageSize]="pageSize"
+    (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)">
+  </app-paginator>
+</div>
+
+<!-- ── Modal: formulario ───────────────────────────────────────────── -->
+@if (showForm) {
+  <div class="modal-overlay">
+    <div class="modal-box modal-xl persona-modal" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="closeForm()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">{{ isEdit ? 'Editar' : 'Nuevo' }} {{ cfg.singular }}</div>
+        <div class="modal-sub">
+          @if (isEdit) { Registro #{{ editId }} · los cambios quedan en la bitácora }
+          @else { Complete los datos y, si desea, asigne {{ esPadres ? 'estudiantes' : 'padres de familia' }} en el mismo paso }
+        </div>
+      </div>
+
+      @if (loadingForm) {
+        <div class="loading-state"><span class="spinner dark"></span> Cargando registro...</div>
+      } @else {
+        <form class="modal-form" (ngSubmit)="save()">
+          <div class="form-section">
+            <div class="datos-layout" [class.con-foto]="!esPadres">
+              @if (!esPadres) {
+                <div class="foto-col">
+                  <div class="form-section-title">Fotografía</div>
+                  <app-foto-captura
+                    [fotoUrl]="urlFoto(fotoActual)"
+                    [iniciales]="iniciales(form.primer_nombre + ' ' + form.primer_apellido)"
+                    (cambio)="onFotoCambio($event)"/>
+                </div>
+              }
+              <app-persona-campos [model]="form" [tipo]="esPadres ? 'padre' : 'estudiante'" [estadosCiviles]="estadosCiviles"/>
+            </div>
+            <div class="estado-row">
+              <label class="switch-wrap">
+                <input type="checkbox" [checked]="activo === 1" (change)="activo = $any($event.target).checked ? 1 : 0"/>
+                <span class="switch-slider"></span>
+                <span class="switch-label">
+                  {{ activo ? 'Activo' : 'Inactivo' }}
+                  <span class="switch-desc">Los registros inactivos no aparecen en las búsquedas para asignar</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">
+              {{ cfg.tituloVinculos }}
+              <span class="hint">{{ vinculos.length }} asignado{{ vinculos.length === 1 ? '' : 's' }}</span>
+            </div>
+            <app-vinculos-editor
+              [tipoOtro]="cfg.tipoOtro"
+              [items]="vinculos"
+              [principal]="form"
+              [estadosCiviles]="estadosCiviles"
+              [puedeCrear]="puedeCrearOtro"/>
+          </div>
+
+          @if (!esPadres) {
+            <div class="form-section">
+              <div class="form-section-title">
+                Expediente de archivos
+                <span class="hint">Partida de nacimiento, certificados, constancias...</span>
+              </div>
+              <app-archivos-estudiante #archivosForm modo="editar" [idestudiante]="editId"/>
+            </div>
+          }
+
+          @if (error) { <div class="alert-error">{{ error }}</div> }
+
+          <div class="modal-actions">
+            <button type="button" class="btn-col ghost" (click)="closeForm()">Cancelar</button>
+            <button type="submit" class="btn-col primary" [disabled]="saving">
+              @if (saving) { <span class="spinner"></span> }
+              {{ isEdit ? 'Guardar cambios' : 'Registrar ' + cfg.singular }}
+            </button>
+          </div>
+        </form>
+      }
+    </div>
+  </div>
+}
+
+<!-- ── Modal: ficha ────────────────────────────────────────────────── -->
+@if (showView && viewItem) {
+  <div class="modal-overlay" (click)="closeView()">
+    <div class="modal-box modal-lg" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="closeView()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar ficha-head">
+        @if (viewItem.foto) {
+          <img class="ficha-foto" [src]="urlFoto(viewItem.foto)" [alt]="viewItem.nombre_completo"/>
+        } @else {
+          <span class="ficha-av">{{ iniciales(viewItem.primer_nombre + ' ' + viewItem.primer_apellido) }}</span>
+        }
+        <div>
+          <div class="modal-title">{{ viewItem.nombre_completo }}</div>
+          <div class="modal-sub">
+            {{ capitalizar(cfg.singular) }} #{{ idDe(viewItem) }} ·
+            {{ viewItem.activo ? 'Activo' : 'Inactivo' }}
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-tabs">
+        <button class="detail-tab" [class.active]="viewTab === 'info'" (click)="viewTab = 'info'">Información</button>
+        <button class="detail-tab" [class.active]="viewTab === 'vinculos'" (click)="viewTab = 'vinculos'">
+          {{ cfg.tituloVinculos }} ({{ viewItem.total_vinculos }})
+        </button>
+        @if (!esPadres) {
+          <button class="detail-tab" [class.active]="viewTab === 'archivos'" (click)="viewTab = 'archivos'">
+            Archivos ({{ viewItem.total_archivos ?? 0 }})
+          </button>
+        }
+        <button class="detail-tab" [class.active]="viewTab === 'bitacora'" (click)="viewTab = 'bitacora'">Bitácora</button>
+      </div>
+
+      <div class="detail-body">
+        @if (viewTab === 'info') {
+          <div class="ficha-section">
+            <div class="ficha-section-title">Datos personales</div>
+            <div class="ficha-fields">
+              <div class="ficha-field"><span class="ff-label">Primer nombre</span><span class="ff-value">{{ viewItem.primer_nombre }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Segundo nombre</span><span class="ff-value">{{ viewItem.segundo_nombre || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Primer apellido</span><span class="ff-value">{{ viewItem.primer_apellido }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Segundo apellido</span><span class="ff-value">{{ viewItem.segundo_apellido || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Apellido de casada</span><span class="ff-value">{{ viewItem.apellido_casada || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Fecha de nacimiento</span>
+                <span class="ff-value">
+                  @if (viewItem.fecha_nacimiento) { {{ viewItem.fecha_nacimiento | date:'dd/MM/yyyy':'UTC' }} ({{ viewItem.edad }} años) } @else { — }
+                </span>
+              </div>
+              @if (esPadres) {
+                <div class="ficha-field"><span class="ff-label">Estado civil</span><span class="ff-value">{{ viewItem.estado_civil || '—' }}</span></div>
+              } @else {
+                <div class="ficha-field"><span class="ff-label">Lugar de nacimiento</span><span class="ff-value">{{ viewItem.lugar_nacimiento || '—' }}</span></div>
+              }
+            </div>
+          </div>
+          <div class="ficha-section">
+            <div class="ficha-section-title">Documentos</div>
+            <div class="ficha-fields">
+              <div class="ficha-field"><span class="ff-label">DPI</span><span class="ff-value">{{ viewItem.dpi || '—' }}</span></div>
+              @if (esPadres) {
+                <div class="ficha-field"><span class="ff-label">NIT</span><span class="ff-value">{{ viewItem.nit || '—' }}</span></div>
+                <div class="ficha-field"><span class="ff-label">Pasaporte</span><span class="ff-value">{{ viewItem.pasaporte || '—' }}</span></div>
+              }
+            </div>
+          </div>
+          <div class="ficha-section">
+            <div class="ficha-section-title">Contacto</div>
+            <div class="ficha-fields">
+              <div class="ficha-field full"><span class="ff-label">Dirección</span><span class="ff-value">{{ viewItem.direccion || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Teléfono de casa</span><span class="ff-value">{{ viewItem.telefono_casa || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Teléfono celular</span><span class="ff-value">{{ viewItem.telefono_celular || '—' }}</span></div>
+            </div>
+          </div>
+          <div class="ficha-section">
+            <div class="ficha-section-title">Registro</div>
+            <div class="ficha-fields">
+              <div class="ficha-field"><span class="ff-label">Registrado por</span><span class="ff-value">{{ viewItem.usuario_registro || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Fecha de registro</span><span class="ff-value">{{ viewItem.fecha_creacion | date:'dd/MM/yyyy HH:mm' }}</span></div>
+              @if (viewItem.fecha_modificacion) {
+                <div class="ficha-field"><span class="ff-label">Última modificación</span><span class="ff-value">{{ viewItem.fecha_modificacion | date:'dd/MM/yyyy HH:mm' }}</span></div>
+              }
+            </div>
+          </div>
+        }
+
+        @if (viewTab === 'vinculos') {
+          @if (viewItem.vinculos?.length) {
+            <div class="vinc-list">
+              @for (v of viewItem.vinculos; track v.id) {
+                <div class="vinc-card">
+                  @if (v.foto) {
+                    <img class="vinc-foto" [src]="urlFoto(v.foto)" [alt]="v.nombre_completo"/>
+                  } @else {
+                    <span class="ficha-av sm">{{ iniciales(v.nombre_completo) }}</span>
+                  }
+                  <div class="vinc-info">
+                    <strong>{{ v.nombre_completo }}</strong>
+                    <span class="muted">
+                      {{ v.dpi ? 'DPI ' + v.dpi : 'Sin DPI' }}
+                      @if (v.edad != null && esPadres) { · {{ v.edad }} años }
+                      @if (v.telefono_celular) { · Cel. {{ v.telefono_celular }} }
+                    </span>
+                  </div>
+                  @if (v.parentesco) { <span class="chip accent">{{ v.parentesco }}</span> }
+                  @if (!v.activo) { <span class="badge danger">Inactivo</span> }
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="empty-state"><p>Sin {{ esPadres ? 'estudiantes' : 'padres de familia' }} asignados.</p></div>
+          }
+        }
+
+        @if (viewTab === 'archivos') {
+          <app-archivos-estudiante modo="ver" [idestudiante]="idDe(viewItem)" (total)="viewItem.total_archivos = $event"/>
+        }
+
+        @if (viewTab === 'bitacora') {
+          <app-bitacora-tab [tabla]="cfg.tipo" [idregistro]="idDe(viewItem)"></app-bitacora-tab>
+        }
+      </div>
+
+      <div class="modal-actions" style="margin-top:16px">
+        <button class="btn-col ghost" (click)="closeView()">Cerrar</button>
+        @if (puedeEditar) {
+          <button class="btn-col primary" (click)="openEdit(idDe(viewItem))">Editar</button>
+        }
+      </div>
+    </div>
+  </div>
+}

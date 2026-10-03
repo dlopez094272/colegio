@@ -1,0 +1,142 @@
+<div class="page-header">
+  <h1>Permisos por grupo</h1>
+  <div class="header-actions">
+    <button class="btn-col outline sm" (click)="showCopy=true" [disabled]="!activeGroup">
+      Copiar permisos de...
+    </button>
+    <button class="btn-col primary sm" (click)="showNewGroup=true">
+      + Añadir grupo
+    </button>
+    <button class="btn-col ghost sm" (click)="loadGroups()">↺ Recargar</button>
+  </div>
+</div>
+
+<!-- Error de API -->
+@if (apiError) {
+  <div class="api-error-box">
+    <strong>⚠ No se pudo cargar la información:</strong><br>
+    {{ apiError }}
+  </div>
+}
+
+<!-- Loading grupos -->
+@if (loadingGroups) {
+  <div class="loading-row"><span class="spinner dark"></span> Cargando grupos de seguridad...</div>
+}
+
+<!-- Tabs de grupos -->
+<div class="group-tabs">
+  @for (g of groups; track g.GroupID) {
+    <button class="group-tab" [class.active]="activeGroup?.GroupID === g.GroupID"
+            (click)="selectGroup(g)">
+      {{ g.Label }}
+    </button>
+  }
+</div>
+
+<!-- Barra de herramientas de la tabla de permisos -->
+<div class="col-card permisos-card">
+  <div class="permisos-toolbar">
+    <input class="col-input search-input" [(ngModel)]="search"
+           (ngModelChange)="applyFilter()" placeholder="Buscar tabla..."/>
+    <div class="toolbar-right">
+      @if (saved) { <span class="saved-msg">✓ Guardado</span> }
+      <button class="btn-col ghost sm" (click)="reset()">Reiniciar</button>
+      <button class="btn-col primary sm" (click)="save()" [disabled]="saving">
+        @if (saving) { <span class="spinner"></span> } Guardar
+      </button>
+    </div>
+  </div>
+
+  <!-- Tabla de permisos -->
+  <div class="table-wrap">
+    <div class="table-scroll-wrap">
+    <table class="col-table permisos-table">
+      <thead>
+        <tr>
+          <th class="table-col">Tabla del sistema</th>
+          @for (p of perms; track p.key) {
+            <th class="perm-col">
+              <div class="perm-header">
+                <span>{{ p.label }}</span>
+                <label class="cb-wrap" title="Marcar/desmarcar todos">
+                  <input type="checkbox" [checked]="allChecked(p.key)"
+                         (change)="toggleAll(p.key)"/>
+                  <span class="cb-box"></span>
+                </label>
+              </div>
+            </th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (t of filtered; track t) {
+          <tr>
+            <td class="table-name">{{ t }}</td>
+            @for (p of perms; track p.key) {
+              <td class="perm-col">
+                <label class="cb-wrap">
+                  <input type="checkbox" [checked]="hasPerm(t, p.key)"
+                         (change)="togglePerm(t, p.key)"/>
+                  <span class="cb-box"></span>
+                </label>
+              </td>
+            }
+          </tr>
+        }
+        @if (filtered.length === 0) {
+          <tr><td [attr.colspan]="1 + perms.length" class="empty-cell">Sin tablas registradas</td></tr>
+        }
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: nuevo grupo -->
+@if (showNewGroup) {
+  <div class="modal-overlay">
+    <div class="modal-box" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="showNewGroup=false">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <h3 class="modal-title">Añadir grupo</h3>
+      <div class="field">
+        <label class="col-label">Nombre del grupo</label>
+        <input class="col-input" [(ngModel)]="newGroupLabel" placeholder="Nombre del grupo" (keydown.enter)="addGroup()"/>
+      </div>
+      <div class="modal-actions" style="margin-top:16px">
+        <button class="btn-col ghost" (click)="showNewGroup=false">Cancelar</button>
+        <button class="btn-col primary" (click)="addGroup()" [disabled]="!newGroupLabel.trim()">Guardar</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Modal: copiar permisos -->
+@if (showCopy) {
+  <div class="modal-overlay">
+    <div class="modal-box" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="showCopy=false">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <h3 class="modal-title">Copiar permisos de...</h3>
+      <p class="copy-desc">Copia los permisos de otro grupo hacia
+        <strong>{{ activeGroup?.Label }}</strong>. Los permisos actuales serán reemplazados.</p>
+      <div class="field" style="margin:16px 0">
+        <label class="col-label">Origen</label>
+        <select class="col-input" [(ngModel)]="copyFromGroup">
+          @for (g of groups; track g.GroupID) {
+            @if (g.GroupID !== activeGroup?.GroupID) {
+              <option [value]="g.GroupID">{{ g.Label }}</option>
+            }
+          }
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-col ghost" (click)="showCopy=false">Cancelar</button>
+        <button class="btn-col primary" (click)="copyRights()">Copiar</button>
+      </div>
+    </div>
+  </div>
+}

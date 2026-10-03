@@ -1,0 +1,68 @@
+<div class="welcome">
+  <div>
+    <h1>{{ saludo }}{{ nombre ? ', ' + nombre : '' }}</h1>
+    <p>Resumen general de la comunidad educativa.</p>
+  </div>
+  <div class="quick">
+    @if (permisos.tiene('estudiantes', 'S')) {
+      <a class="btn-col primary" routerLink="/comunidad/estudiantes">Estudiantes</a>
+    }
+    @if (permisos.tiene('padres', 'S')) {
+      <a class="btn-col dark" routerLink="/comunidad/padres">Padres de familia</a>
+    }
+  </div>
+</div>
+
+@if (loading) {
+  <div class="loading-state"><span class="spinner dark"></span> Cargando resumen...</div>
+} @else {
+  <div class="stat-grid">
+    @if (resumen.estudiantes; as e) {
+      <a class="stat-card link" routerLink="/comunidad/estudiantes">
+        <span class="stat-label">Estudiantes activos</span>
+        <span class="stat-value">{{ e.activos }}</span>
+        <span class="stat-foot">{{ e.total }} registrados · {{ e.nuevos_30d }} nuevos en 30 días</span>
+      </a>
+    }
+    @if (resumen.padres; as p) {
+      <a class="stat-card link" routerLink="/comunidad/padres">
+        <span class="stat-label">Padres de familia activos</span>
+        <span class="stat-value">{{ p.activos }}</span>
+        <span class="stat-foot">{{ p.total }} registrados · {{ p.nuevos_30d }} nuevos en 30 días</span>
+      </a>
+    }
+    @if (resumen.estudiantes_sin_padres !== undefined) {
+      <a class="stat-card link" [class.alerta]="resumen.estudiantes_sin_padres! > 0" routerLink="/comunidad/estudiantes">
+        <span class="stat-label">Estudiantes sin encargado</span>
+        <span class="stat-value">{{ resumen.estudiantes_sin_padres }}</span>
+        <span class="stat-foot">Activos sin padre de familia asignado</span>
+      </a>
+    }
+  </div>
+
+  @if (resumen.actividad) {
+    <div class="col-card actividad">
+      <div class="act-head">
+        <h3>Actividad reciente</h3>
+        <a routerLink="/seguridad/bitacora">Ver bitácora completa →</a>
+      </div>
+      @for (a of resumen.actividad; track a.idbitacora) {
+        <div class="act-row">
+          <span class="badge {{ accionClass(a.accion) }}">{{ a.accion }}</span>
+          <div class="act-info">
+            <span class="act-desc">{{ a.descripcion }}</span>
+            <span class="act-meta">{{ etiquetaTabla(a.tabla) }} #{{ a.idregistro }} · {{ a.usuario_nombre || 'Sistema' }} · {{ a.fecha | date:'dd/MM/yyyy HH:mm' }}</span>
+          </div>
+        </div>
+      } @empty {
+        <div class="empty-state"><p>Aún no hay movimientos registrados.</p></div>
+      }
+    </div>
+  }
+
+  @if (!resumen.estudiantes && !resumen.padres && !resumen.actividad) {
+    <div class="col-card empty-state">
+      <p>Su usuario aún no tiene módulos asignados. Solicite acceso al administrador del sistema.</p>
+    </div>
+  }
+}

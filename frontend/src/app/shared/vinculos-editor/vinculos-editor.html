@@ -1,0 +1,105 @@
+<div class="ve">
+
+  <!-- ── Barra de acciones: buscar existente / crear nuevo ─────────── -->
+  <div class="ve-actions">
+    <div class="ve-search">
+      <svg class="ve-search-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+      <input class="col-input" type="text" [(ngModel)]="busqueda" [ngModelOptions]="{standalone: true}"
+             (ngModelChange)="onBuscar()" (focus)="mostrarResultados = busqueda.trim().length >= 2"
+             [placeholder]="'Buscar ' + singularOtro + ' existente por nombre, DPI' + (esPadres ? ', NIT' : '') + ' o teléfono...'"/>
+      @if (buscando) { <span class="spinner dark ve-spin"></span> }
+
+      @if (mostrarResultados) {
+        <div class="ve-results">
+          @for (r of resultados; track (r.idpadres ?? r.idestudiantes)) {
+            <button type="button" class="ve-result" (click)="asignarExistente(r)">
+              <span class="ve-result-name">{{ r.nombre_completo }}</span>
+              <span class="ve-result-det">{{ detalleDe(r) || 'Sin documentos registrados' }}</span>
+              @if (r.vinculos_nombres) {
+                <span class="ve-result-vinc">{{ esPadres ? 'Hijos' : 'Padres' }}: {{ r.vinculos_nombres }}</span>
+              }
+            </button>
+          } @empty {
+            <div class="ve-empty">
+              Sin coincidencias.
+              @if (puedeCrear) { <button type="button" class="link" (click)="agregarNuevo(); mostrarResultados = false">Crear {{ singularOtro }} nuevo</button> }
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    @if (puedeCrear) {
+      <div class="ve-new-btns">
+        @if (esPadres) {
+          <button type="button" class="btn-col outline sm" (click)="agregarNuevo('Padre')">+ Padre nuevo</button>
+          <button type="button" class="btn-col outline sm" (click)="agregarNuevo('Madre')">+ Madre nueva</button>
+          <button type="button" class="btn-col ghost sm" (click)="agregarNuevo('Tutor')">+ Otro encargado</button>
+        } @else {
+          <button type="button" class="btn-col outline sm" (click)="agregarNuevo()">+ Estudiante nuevo</button>
+        }
+      </div>
+    }
+  </div>
+
+  <!-- ── Asignados ─────────────────────────────────────────────────── -->
+  @if (items.length === 0) {
+    <div class="ve-none">
+      Sin {{ esPadres ? 'padres de familia' : 'estudiantes' }} asignados.
+      Busque uno existente o cree uno nuevo; los datos en común (dirección y teléfonos) se heredan automáticamente.
+    </div>
+  }
+
+  <div class="ve-list">
+    @for (item of items; track item.key) {
+      <div class="ve-item" [class.is-new]="!!item.nuevo" [class.open]="item.abierto">
+        <div class="ve-row">
+          <div class="ve-avatar">{{ item.nuevo ? '+' : (item.nombre || '?').charAt(0) }}</div>
+
+          <div class="ve-info" (click)="item.nuevo && toggle(item)" [class.clickable]="!!item.nuevo">
+            <div class="ve-name">
+              {{ item.nuevo ? nombreNuevo(item) : item.nombre }}
+              @if (item.nuevo) { <span class="chip accent">Nuevo</span> }
+            </div>
+            <div class="ve-det">
+              @if (item.nuevo) {
+                Se creará al guardar · {{ item.abierto ? 'clic para contraer' : 'clic para editar sus datos' }}
+              } @else {
+                {{ item.detalle || 'Registro existente' }}
+              }
+            </div>
+          </div>
+
+          <select class="col-input ve-parentesco" [(ngModel)]="item.parentesco" [ngModelOptions]="{standalone: true}"
+                  (ngModelChange)="onParentescoChange(item)" title="Parentesco">
+            <option [ngValue]="null">Parentesco…</option>
+            @for (p of parentescos; track p) { <option [ngValue]="p">{{ p }}</option> }
+          </select>
+
+          @if (item.nuevo) {
+            <button type="button" class="ve-icon-btn" (click)="toggle(item)" [title]="item.abierto ? 'Contraer' : 'Editar datos'">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" [style.transform]="item.abierto ? 'rotate(180deg)' : ''"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          }
+          <button type="button" class="ve-icon-btn danger" (click)="quitar(item)" [title]="item.nuevo ? 'Descartar' : 'Quitar asignación'">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        @if (item.nuevo && item.abierto) {
+          <div class="ve-form">
+            <app-persona-campos
+              [model]="item.nuevo"
+              [tipo]="esPadres ? 'padre' : 'estudiante'"
+              [estadosCiviles]="estadosCiviles"
+              [heredados]="heredados(item)"
+              [origenHerencia]="origenHerencia"
+              [compacto]="true"
+              (campoEditado)="onCampoEditado(item, $event)"/>
+            <p class="field-hint">Los campos resaltados se copian {{ origenHerencia }} mientras no los modifique.</p>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>

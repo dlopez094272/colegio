@@ -1,0 +1,61 @@
+// Estilos base (listado, ficha, foto) compartidos con personas-modulo.
+
+.list-toolbar .formacion-filtro { max-width: 260px; }
+
+.tipo-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: var(--clr-surface-2);
+  color: var(--clr-text);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+
+  &.coord { background: var(--clr-ink); color: var(--clr-accent); }
+}
+
+.datos-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.tipo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  .col-label { margin: 0; }
+}
+
+// Mismo selector segmentado de los filtros, dentro del formulario
+.tipo-seg {
+  display: inline-flex;
+  border: 1.5px solid var(--clr-border);
+  border-radius: 8px;
+  overflow: hidden;
+
+  button {
+    border: none;
+    background: var(--clr-card);
+    padding: 8px 18px;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--clr-text-muted);
+    cursor: pointer;
+    transition: background .15s, color .15s;
+
+    & + button { border-left: 1.5px solid var(--clr-border); }
+    &:hover { background: var(--clr-surface-2); }
+    &.active { background: var(--clr-ink); color: var(--clr-accent); }
+  }
+}
+
+.hint-inline {
+  margin-left: 8px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--clr-text-muted);
+}
+
+.ficha-field .chips { margin-top: 2px; }

@@ -1,0 +1,92 @@
+<div class="page-header">
+  <div>
+    <h1>
+      <span class="h1-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="M8.5 13.9 7 22l5-3 5 3-1.5-8.1"/></svg>
+      </span>
+      Formaciones académicas
+    </h1>
+    <p class="page-subtitle">Catálogo de títulos y grados académicos del personal docente (un docente puede tener varios)</p>
+  </div>
+  @if (permisos.tiene('formaciones_academicas', 'A')) {
+    <button class="btn-col primary" (click)="openNew()">+ Nueva formación</button>
+  }
+</div>
+
+<div class="col-card" style="padding:0; overflow:hidden; max-width:860px;">
+  <table class="col-table">
+    <thead>
+      <tr>
+        <th class="row-menu-col"></th>
+        <th>ID</th>
+        <th>Formación académica</th>
+        <th>Docentes</th>
+        <th>Estado</th>
+      </tr>
+    </thead>
+    <tbody>
+      @if (loading) {
+        <tr><td colspan="5"><div class="loading-state"><span class="spinner dark"></span> Cargando...</div></td></tr>
+      } @else {
+        @for (fa of items; track fa.idformaciones_academicas) {
+          <tr>
+            <td class="row-menu-col"><app-row-menu [actions]="getRowActions(fa)"></app-row-menu></td>
+            <td class="id-col">{{ fa.idformaciones_academicas }}</td>
+            <td><strong>{{ fa.formacion }}</strong></td>
+            <td>{{ fa.total_docentes || 0 }}</td>
+            <td>
+              @if (fa.activo) { <span class="badge success">Activo</span> } @else { <span class="badge danger">Inactivo</span> }
+            </td>
+          </tr>
+        } @empty {
+          <tr><td colspan="5"><div class="empty-state"><p>No hay formaciones académicas registradas.</p></div></td></tr>
+        }
+      }
+    </tbody>
+  </table>
+</div>
+
+@if (showModal) {
+  <div class="modal-overlay">
+    <div class="modal-box" style="width:440px" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="showModal = false">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">{{ isEdit ? 'Editar' : 'Nueva' }} formación académica</div>
+      </div>
+      <form class="modal-form" (ngSubmit)="save()">
+        <div class="field">
+          <label class="col-label">Nombre <span class="req">*</span></label>
+          <input class="col-input" name="formacion" [(ngModel)]="form.formacion" maxlength="150" placeholder="Ej. Licenciatura en Pedagogía" autofocus/>
+        </div>
+        <label class="switch-wrap">
+          <input type="checkbox" name="activo" [checked]="form.activo === 1" (change)="form.activo = $any($event.target).checked ? 1 : 0"/>
+          <span class="switch-slider"></span>
+          <span class="switch-label">Activo <span class="switch-desc">Solo las activas se ofrecen en el formulario de docentes</span></span>
+        </label>
+        @if (error) { <div class="alert-error">{{ error }}</div> }
+        <div class="modal-actions">
+          <button type="button" class="btn-col ghost" (click)="showModal = false">Cancelar</button>
+          <button type="submit" class="btn-col primary" [disabled]="saving">
+            @if (saving) { <span class="spinner"></span> } Guardar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+@if (bitacoraItem) {
+  <div class="modal-overlay" (click)="bitacoraItem = null">
+    <div class="modal-box modal-lg" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="bitacoraItem = null">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">Bitácora — {{ bitacoraItem.formacion }}</div>
+      </div>
+      <app-bitacora-tab tabla="formaciones_academicas" [idregistro]="bitacoraItem.idformaciones_academicas"></app-bitacora-tab>
+    </div>
+  </div>
+}

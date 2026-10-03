@@ -1,0 +1,115 @@
+<div class="ae">
+  @if (editable) {
+    <!-- ── Agregar archivos ── -->
+    <div class="ae-drop" [class.over]="arrastrando"
+         (dragover)="$event.preventDefault(); arrastrando = true"
+         (dragleave)="arrastrando = false"
+         (drop)="onDrop($event)">
+      <div class="ae-drop-cat">
+        <label class="col-label">Categoría</label>
+        <select class="col-input" name="ae_categoria" [(ngModel)]="categoriaSel">
+          <option [ngValue]="null">— Seleccione —</option>
+          @for (c of categorias; track c.idcategorias_archivos) {
+            <option [ngValue]="c.idcategorias_archivos">{{ c.categoria }}</option>
+          }
+        </select>
+      </div>
+      <div class="ae-drop-txt">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span>Arrastre aquí los archivos o</span>
+        <label class="btn-col ghost sm ae-pick">
+          Seleccionar archivos
+          <input type="file" multiple hidden (change)="onSeleccion($event)"/>
+        </label>
+        <span class="muted">PDF, imágenes o cualquier tipo · máx. 20 MB c/u</span>
+      </div>
+    </div>
+  }
+
+  @if (loading) {
+    <div class="loading-state"><span class="spinner dark"></span> Cargando archivos...</div>
+  } @else {
+    <div class="ae-list">
+      <!-- Pendientes de subir -->
+      @for (p of pendientes; track p.uid) {
+        <div class="ae-item nuevo">
+          <span class="ae-ext" [class]="'ae-ext t-' + tipo(p.file.type, p.file.name)">{{ extension(p.file.name) }}</span>
+          <div class="ae-info">
+            <button type="button" class="ae-name" [class.link]="puedePrevisualizar(p.file.type)" (click)="abrirPendiente(p)">{{ p.file.name }}</button>
+            <span class="muted">{{ tamano(p.file.size) }} · se subirá al guardar</span>
+          </div>
+          <select class="col-input ae-cat" [class.invalido]="!p.idcategorias_archivos" [name]="'cat_' + p.uid" [(ngModel)]="p.idcategorias_archivos">
+            <option [ngValue]="null">— Categoría —</option>
+            @for (c of categorias; track c.idcategorias_archivos) {
+              <option [ngValue]="c.idcategorias_archivos">{{ c.categoria }}</option>
+            }
+          </select>
+          <input class="col-input ae-obs" [name]="'obs_' + p.uid" [(ngModel)]="p.observaciones" maxlength="255" placeholder="Observaciones (opcional)"/>
+          <span class="chip accent">Nuevo</span>
+          <button type="button" class="ae-btn danger" title="Quitar" (click)="quitarPendiente(p)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      }
+
+      <!-- Ya guardados -->
+      @for (a of existentes; track a.idestudiantes_archivos) {
+        <div class="ae-item" [class.borrar]="porEliminar.has(a.idestudiantes_archivos)">
+          <span class="ae-ext" [class]="'ae-ext t-' + tipo(a.mime, a.nombre_original)">{{ extension(a.nombre_original) }}</span>
+          <div class="ae-info">
+            <button type="button" class="ae-name link" (click)="abrir(a)" [title]="puedePrevisualizar(a.mime) ? 'Ver' : 'Descargar'">{{ a.nombre_original }}</button>
+            <span class="muted">
+              {{ tamano(a.tamano) }} · {{ a.fecha_creacion | date:'dd/MM/yyyy HH:mm' }}
+              @if (a.usuario_registro) { · {{ a.usuario_registro }} }
+            </span>
+            @if (a.observaciones) { <span class="ae-obs-txt">{{ a.observaciones }}</span> }
+          </div>
+          <span class="chip">{{ a.categoria }}</span>
+          @if (abriendo === a.idestudiantes_archivos) {
+            <span class="spinner dark"></span>
+          }
+          @if (puedePrevisualizar(a.mime)) {
+            <button type="button" class="ae-btn" title="Ver" (click)="abrir(a)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          }
+          <button type="button" class="ae-btn" title="Descargar" (click)="descargar(a)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+          @if (editable) {
+            @if (porEliminar.has(a.idestudiantes_archivos)) {
+              <button type="button" class="btn-col ghost sm" (click)="toggleEliminar(a)">Deshacer</button>
+            } @else {
+              <button type="button" class="ae-btn danger" title="Eliminar al guardar" (click)="toggleEliminar(a)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+              </button>
+            }
+          }
+        </div>
+      }
+
+      @if (!pendientes.length && !existentes.length) {
+        <div class="empty-state"><p>{{ editable ? 'Aún no hay archivos. Seleccione una categoría y agregue los documentos.' : 'El estudiante no tiene archivos en su expediente.' }}</p></div>
+      }
+    </div>
+  }
+</div>
+
+<!-- ── Vista previa ── -->
+@if (vista) {
+  <div class="modal-overlay ae-vista-overlay" (click)="cerrarVista()">
+    <div class="modal-box ae-vista" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="cerrarVista()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="ae-vista-title">{{ vista.nombre }}</div>
+      <div class="ae-vista-body">
+        @if (vista.tipo === 'pdf') {
+          <iframe [src]="vista.safeUrl" title="Vista previa"></iframe>
+        } @else {
+          <img [src]="vista.safeUrl" [alt]="vista.nombre"/>
+        }
+      </div>
+    </div>
+  </div>
+}

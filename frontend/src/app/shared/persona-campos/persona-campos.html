@@ -1,0 +1,107 @@
+<div class="pc-wrap" [class.compacto]="compacto">
+
+  <!-- ── Datos personales ─────────────────────────────────────── -->
+  <div class="pc-block">
+    @if (!compacto) { <div class="form-section-title">Datos personales</div> }
+    <div class="field-grid">
+      <div class="field">
+        <label class="col-label">Primer nombre <span class="req">*</span></label>
+        <input class="col-input" [(ngModel)]="model.primer_nombre" [ngModelOptions]="{standalone: true}" maxlength="60" placeholder="Primer nombre"/>
+      </div>
+      <div class="field">
+        <label class="col-label">Segundo nombre</label>
+        <input class="col-input" [(ngModel)]="model.segundo_nombre" [ngModelOptions]="{standalone: true}" maxlength="60" placeholder="Segundo nombre"/>
+      </div>
+      <div class="field">
+        <label class="col-label">Fecha de nacimiento</label>
+        <input class="col-input" type="date" [(ngModel)]="model.fecha_nacimiento" [ngModelOptions]="{standalone: true}" [max]="hoy"/>
+      </div>
+
+      <div class="field">
+        <label class="col-label">Primer apellido <span class="req">*</span></label>
+        <input class="col-input" [class.inherited]="esHeredado('primer_apellido')" [(ngModel)]="model.primer_apellido" [ngModelOptions]="{standalone: true}"
+               (ngModelChange)="onEdit('primer_apellido')" maxlength="60" placeholder="Primer apellido"/>
+      </div>
+      <div class="field">
+        <label class="col-label">Segundo apellido</label>
+        <input class="col-input" [class.inherited]="esHeredado('segundo_apellido')" [(ngModel)]="model.segundo_apellido" [ngModelOptions]="{standalone: true}"
+               (ngModelChange)="onEdit('segundo_apellido')" maxlength="60" placeholder="Segundo apellido"/>
+      </div>
+      <div class="field">
+        <label class="col-label">Apellido de casada</label>
+        <input class="col-input" [(ngModel)]="model.apellido_casada" [ngModelOptions]="{standalone: true}" maxlength="60" placeholder="Ej. de López"/>
+      </div>
+
+      @if (!esPadre) {
+        <div class="field span-2">
+          <label class="col-label">Lugar de nacimiento</label>
+          <input class="col-input" [(ngModel)]="model.lugar_nacimiento" [ngModelOptions]="{standalone: true}" maxlength="150" placeholder="Municipio, departamento, país"/>
+        </div>
+      }
+      @if (esPadre) {
+        <div class="field">
+          <label class="col-label">Estado civil</label>
+          <select class="col-input" [(ngModel)]="model.idestados_civiles" [ngModelOptions]="{standalone: true}">
+            <option [ngValue]="null">— Seleccionar —</option>
+            @for (ec of estadosCiviles; track ec.idestados_civiles) {
+              <option [ngValue]="ec.idestados_civiles">{{ ec.estado_civil }}</option>
+            }
+          </select>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- ── Documentos ───────────────────────────────────────────── -->
+  <div class="pc-block">
+    @if (!compacto) { <div class="form-section-title">Documentos de identificación</div> }
+    <div class="field-grid">
+      <div class="field">
+        <label class="col-label">{{ esPadre ? 'Número de DPI' : 'DPI / CUI' }}</label>
+        <input class="col-input mono" [(ngModel)]="model.dpi" [ngModelOptions]="{standalone: true}" (blur)="limpiarDpi()"
+               inputmode="numeric" maxlength="15" placeholder="13 dígitos"/>
+      </div>
+      @if (esPadre) {
+        <div class="field">
+          <label class="col-label">Número de NIT</label>
+          <input class="col-input mono" [(ngModel)]="model.nit" [ngModelOptions]="{standalone: true}" maxlength="15" placeholder="Ej. 1234567-8 o CF"/>
+        </div>
+        <div class="field">
+          <label class="col-label">Número de pasaporte</label>
+          <input class="col-input mono" [(ngModel)]="model.pasaporte" [ngModelOptions]="{standalone: true}" maxlength="30" placeholder="Pasaporte"/>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- ── Contacto ─────────────────────────────────────────────── -->
+  <div class="pc-block">
+    @if (!compacto) { <div class="form-section-title">Dirección y teléfonos</div> }
+    <div class="field-grid">
+      <div class="field span-3">
+        <label class="col-label">
+          Dirección
+          @if (esHeredado('direccion')) { <span class="inh-tag">heredado {{ origenHerencia }}</span> }
+        </label>
+        <input class="col-input" [class.inherited]="esHeredado('direccion')" [(ngModel)]="model.direccion" [ngModelOptions]="{standalone: true}"
+               (ngModelChange)="onEdit('direccion')" maxlength="300" placeholder="Dirección de residencia"/>
+      </div>
+      <div class="field">
+        <label class="col-label">
+          Teléfono de casa
+          @if (esHeredado('telefono_casa')) { <span class="inh-tag">heredado</span> }
+        </label>
+        <input class="col-input" [class.inherited]="esHeredado('telefono_casa')" [(ngModel)]="model.telefono_casa" [ngModelOptions]="{standalone: true}"
+               (ngModelChange)="onEdit('telefono_casa')" inputmode="tel" maxlength="20" placeholder="Teléfono de casa"/>
+      </div>
+      <div class="field">
+        <label class="col-label">
+          Teléfono celular
+          @if (esHeredado('telefono_celular')) { <span class="inh-tag">heredado</span> }
+        </label>
+        <input class="col-input" [class.inherited]="esHeredado('telefono_celular')" [(ngModel)]="model.telefono_celular" [ngModelOptions]="{standalone: true}"
+               (ngModelChange)="onEdit('telefono_celular')" inputmode="tel" maxlength="20" placeholder="Teléfono celular"/>
+      </div>
+    </div>
+  </div>
+</div>

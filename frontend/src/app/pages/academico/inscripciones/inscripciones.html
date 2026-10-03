@@ -1,0 +1,478 @@
+<!-- ── Encabezado ──────────────────────────────────────────────────── -->
+<div class="page-header">
+  <div>
+    <h1>
+      <span class="h1-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9zM9 11h6M9 15h4"/></svg>
+      </span>
+      Inscripciones
+    </h1>
+    <p class="page-subtitle">Inscripción de estudiantes por ciclo: grado, sección, contrato y estado de cuenta</p>
+  </div>
+  @if (puedeA) {
+    <button class="btn-col primary" (click)="nueva()">+ Nueva inscripción</button>
+  }
+</div>
+
+<!-- ── Filtros ─────────────────────────────────────────────────────── -->
+<div class="col-card list-toolbar">
+  <select class="col-input ins-ciclo" [(ngModel)]="ciclo" (ngModelChange)="reload()" title="Ciclo escolar">
+    @for (c of ciclosFiltro; track c) { <option [ngValue]="c">Ciclo {{ c }}</option> }
+  </select>
+  <input class="col-input" type="text" [(ngModel)]="search" (ngModelChange)="onSearch()"
+         placeholder="Buscar por código, estudiante, CUI o encargado..."/>
+  <select class="col-input ins-sel" [(ngModel)]="nivelFiltro" (ngModelChange)="onNivelFiltro()">
+    <option [ngValue]="null">Todos los niveles</option>
+    @for (n of opciones.niveles; track n.idniveles) { <option [ngValue]="n.idniveles">{{ n.nivel }}</option> }
+  </select>
+  @if (nivelFiltro) {
+    <select class="col-input ins-sel" [(ngModel)]="gradoFiltro" (ngModelChange)="onGradoFiltro()">
+      <option [ngValue]="null">Todos los grados</option>
+      @for (g of gradosFiltro; track g.idgrados) { <option [ngValue]="g.idgrados">{{ nombreGradoOpcion(g) }}</option> }
+    </select>
+  }
+  @if (seccionesFiltro.length) {
+    <select class="col-input ins-sel ins-sec" [(ngModel)]="seccionFiltro" (ngModelChange)="reload()">
+      <option [ngValue]="null">Toda sección</option>
+      @for (s of seccionesFiltro; track s.idsecciones) { <option [ngValue]="s.idsecciones">Sección {{ s.seccion }}</option> }
+    </select>
+  }
+  <div class="seg-filter">
+    <button [class.active]="solvencia === ''" (click)="solvencia = ''; reload()">Todos</button>
+    <button [class.active]="solvencia === 'aldia'" (click)="solvencia = 'aldia'; reload()">Al día</button>
+    <button [class.active]="solvencia === 'mora'" (click)="solvencia = 'mora'; reload()">Con atraso</button>
+  </div>
+  <div class="seg-filter">
+    <button [class.active]="contrato === ''" (click)="contrato = ''; reload()">Contrato</button>
+    <button [class.active]="contrato === 'firmado'" (click)="contrato = 'firmado'; reload()">Firmado</button>
+    <button [class.active]="contrato === 'pendiente'" (click)="contrato = 'pendiente'; reload()">Sin firmar</button>
+  </div>
+  <div class="seg-filter">
+    <button [class.active]="estado === 'Activa'" (click)="estado = 'Activa'; reload()">Activas</button>
+    <button [class.active]="estado === 'Anulada'" (click)="estado = 'Anulada'; reload()">Anuladas</button>
+    <button [class.active]="estado === ''" (click)="estado = ''; reload()">Todas</button>
+  </div>
+  <span class="toolbar-count">{{ total }} inscripci{{ total === 1 ? 'ón' : 'ones' }}</span>
+</div>
+
+<!-- ── Tabla ───────────────────────────────────────────────────────── -->
+<div class="col-card table-card">
+  <div class="table-scroll-wrap">
+    <table class="col-table">
+      <thead>
+        <tr>
+          <th class="row-menu-col"></th>
+          <th appThSort field="codigo" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Código</th>
+          <th appThSort field="estudiante" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Estudiante</th>
+          <th appThSort field="grado" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Grado</th>
+          <th>Encargado</th>
+          <th appThSort field="fecha_inscripcion" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Inscrito</th>
+          <th>Contrato</th>
+          <th appThSort field="saldo_pendiente" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)" class="num">Saldo pendiente</th>
+          <th appThSort field="estado" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (loading) {
+          <tr><td colspan="9"><div class="loading-state"><span class="spinner dark"></span> Cargando...</div></td></tr>
+        } @else {
+          @for (r of rows; track r.idinscripciones) {
+            <tr (dblclick)="abrirDetalle(r, 'resumen')">
+              <td class="row-menu-col" (click)="$event.stopPropagation()"><app-row-menu [actions]="getRowActions(r)"></app-row-menu></td>
+              <td class="nowrap"><strong class="ins-codigo">{{ r.codigo }}</strong></td>
+              <td>
+                <div class="name-cell">
+                  @if (r.estudiante_foto) {
+                    <img class="grid-foto" [src]="urlFoto(r.estudiante_foto)" [alt]="r.estudiante" loading="lazy"/>
+                  } @else {
+                    <span class="mini-avatar est">{{ iniciales(r.estudiante) }}</span>
+                  }
+                  <div>
+                    <strong>{{ r.estudiante }}</strong>
+                    @if (r.estudiante_dpi) { <div class="sub-txt">CUI {{ r.estudiante_dpi }}</div> }
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div>{{ r.grado }}@if (r.seccion) { <span class="chip ins-sec-chip">{{ r.seccion }}</span> }</div>
+                <div class="sub-txt">{{ r.nivel }}{{ r.carrera ? ' › ' + r.carrera : '' }}</div>
+              </td>
+              <td>
+                @if (r.encargado) {
+                  {{ r.encargado }}
+                  @if (r.encargado_telefono) { <div class="sub-txt">{{ r.encargado_telefono }}</div> }
+                } @else { <span class="muted">—</span> }
+              </td>
+              <td class="nowrap">{{ r.fecha_inscripcion | date:'dd/MM/yyyy':'UTC' }}</td>
+              <td>
+                @if (r.contrato_firmado) { <span class="badge success">Firmado</span> }
+                @else { <span class="badge warning">Sin firmar</span> }
+              </td>
+              <td class="num nowrap">
+                @if (r.estado === 'Activa') {
+                  <strong>{{ q(r.saldo_pendiente) }}</strong>
+                  @if (r.cargos_vencidos) { <div class="sub-txt mal">{{ r.cargos_vencidos }} vencida{{ r.cargos_vencidos === 1 ? '' : 's' }}</div> }
+                  @else if (r.cargos_pendientes) { <div class="sub-txt ok">Al día</div> }
+                  @else { <div class="sub-txt ok">Solvente</div> }
+                } @else { <span class="muted">—</span> }
+              </td>
+              <td>
+                @if (r.estado === 'Activa') { <span class="badge success">Activa</span> }
+                @else { <span class="badge danger" [title]="r.motivo_anulacion || ''">Anulada</span> }
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="9">
+              <div class="empty-state">
+                <span class="empty-icon">📋</span>
+                <p>{{ search || nivelFiltro || solvencia || contrato ? 'Sin resultados para los filtros aplicados.' : 'No hay inscripciones en el ciclo ' + ciclo + '.' }}</p>
+              </div>
+            </td></tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+  <app-paginator [total]="total" [page]="page" [pageSize]="pageSize"
+    (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)">
+  </app-paginator>
+</div>
+
+<!-- ── Modal: nueva / editar inscripción ───────────────────────────── -->
+@if (form; as f) {
+  <div class="modal-overlay">
+    <div class="modal-box modal-xl persona-modal" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="cerrarForm()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">{{ f.modo === 'nuevo' ? 'Nueva inscripción' : 'Editar ' + f.insc!.codigo }}</div>
+        <div class="modal-sub">
+          @if (f.modo === 'nuevo') { Al guardar se genera el código, el estado de cuenta con las cuotas del grado y el contrato }
+          @else { {{ f.insc!.estudiante }} · el grado y el ciclo no se cambian (anule e inscriba de nuevo) }
+        </div>
+      </div>
+
+      <form class="modal-form" (ngSubmit)="guardar()">
+        <!-- Estudiante -->
+        <div class="form-section">
+          <div class="form-section-title">Estudiante</div>
+          @if (f.modo === 'editar') {
+            <div class="ins-est">
+              <span class="mini-avatar est">{{ iniciales(f.insc!.estudiante) }}</span>
+              <div><strong>{{ f.insc!.estudiante }}</strong><div class="sub-txt">{{ f.insc!.codigo }} · ciclo {{ f.insc!.ciclo }}</div></div>
+            </div>
+          } @else if (f.estudiante; as e) {
+            <div class="ins-est">
+              @if (e.foto) { <img class="grid-foto" [src]="urlFoto(e.foto)" [alt]="e.nombre_completo"/> }
+              @else { <span class="mini-avatar est">{{ iniciales(e.nombre_completo) }}</span> }
+              <div class="ins-est-info">
+                <strong>{{ e.nombre_completo }}</strong>
+                <div class="sub-txt">{{ e.dpi ? 'CUI ' + e.dpi : 'Sin CUI' }}{{ e.edad != null ? ' · ' + e.edad + ' años' : '' }}</div>
+                @if (f.historial.length) {
+                  <div class="chips ins-hist">
+                    @for (h of f.historial.slice(0, 4); track h.idinscripciones) {
+                      <span class="chip" [class.accent]="h.estado === 'Activa'" [title]="h.codigo + (h.estado === 'Anulada' ? ' (anulada)' : '')">
+                        {{ h.ciclo }}: {{ h.grado }}{{ h.seccion ? ' ' + h.seccion : '' }}{{ h.estado === 'Anulada' ? ' ✕' : '' }}
+                      </span>
+                    }
+                  </div>
+                }
+              </div>
+              <button type="button" class="btn-col ghost sm" (click)="quitarEstudiante()">Cambiar</button>
+            </div>
+            @if (yaInscrito; as y) {
+              <div class="alert-error">Ya está inscrito en el ciclo {{ f.ciclo }} ({{ y.codigo }}).</div>
+            }
+          } @else {
+            <div class="ins-buscar">
+              <input class="col-input" type="text" name="busqueda" [(ngModel)]="busqueda" (ngModelChange)="onBuscarEstudiante()"
+                     placeholder="Escriba nombre, apellido o CUI del estudiante..." autocomplete="off" autofocus/>
+              @if (buscando) { <span class="spinner dark ins-buscar-spin"></span> }
+              @if (resultados.length) {
+                <div class="ins-resultados">
+                  @for (e of resultados; track e.idestudiantes) {
+                    <button type="button" class="ins-res" (click)="elegirEstudiante(e)">
+                      <strong>{{ e.nombre_completo }}</strong>
+                      <span class="sub-txt">{{ e.dpi ? 'CUI ' + e.dpi : '' }}{{ e.vinculos_nombres ? ' · ' + e.vinculos_nombres : '' }}</span>
+                    </button>
+                  }
+                </div>
+              } @else if (busqueda.trim().length >= 2 && !buscando) {
+                <span class="field-hint">Sin resultados. El estudiante debe estar registrado y activo en Comunidad › Estudiantes.</span>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Ciclo y grado -->
+        <div class="form-section">
+          <div class="form-section-title">Ciclo y grado</div>
+          <div class="field-grid">
+            <div class="field">
+              <label class="col-label">Ciclo escolar <span class="req">*</span></label>
+              <select class="col-input" name="ciclo" [(ngModel)]="f.ciclo" (ngModelChange)="onCiclo()" [disabled]="f.modo === 'editar'">
+                @for (c of [anioActual - 1, anioActual, anioActual + 1]; track c) { <option [ngValue]="c">{{ c }}</option> }
+              </select>
+            </div>
+            <div class="field">
+              <label class="col-label">Fecha de inscripción <span class="req">*</span></label>
+              <input class="col-input" type="date" name="fecha_inscripcion" [(ngModel)]="f.fecha_inscripcion"/>
+            </div>
+            <div class="field"></div>
+
+            <div class="field">
+              <label class="col-label">Nivel <span class="req">*</span></label>
+              <select class="col-input" name="idniveles" [(ngModel)]="f.idniveles" (ngModelChange)="onNivel()" [disabled]="f.modo === 'editar'">
+                <option [ngValue]="null" disabled>Seleccione…</option>
+                @for (n of opciones.niveles; track n.idniveles) { <option [ngValue]="n.idniveles">{{ n.nivel }}</option> }
+              </select>
+            </div>
+            @if (nivelSel?.usa_carreras) {
+              <div class="field">
+                <label class="col-label">Carrera <span class="req">*</span></label>
+                <select class="col-input" name="idcarreras" [(ngModel)]="f.idcarreras" (ngModelChange)="onCarrera()" [disabled]="f.modo === 'editar'">
+                  <option [ngValue]="null" disabled>Seleccione…</option>
+                  @for (c of carrerasForm; track c.idcarreras) { <option [ngValue]="c.idcarreras">{{ c.carrera }}</option> }
+                </select>
+              </div>
+            }
+            <div class="field">
+              <label class="col-label">Grado <span class="req">*</span></label>
+              <select class="col-input" name="idgrados" [(ngModel)]="f.idgrados" (ngModelChange)="onGrado()"
+                      [disabled]="f.modo === 'editar' || !f.idniveles || (!!nivelSel?.usa_carreras && !f.idcarreras)">
+                <option [ngValue]="null" disabled>{{ f.idniveles ? 'Seleccione…' : 'Elija el nivel' }}</option>
+                @for (g of gradosForm; track g.idgrados) { <option [ngValue]="g.idgrados">{{ g.grado }}</option> }
+              </select>
+            </div>
+            @if (seccionesForm.length) {
+              <div class="field">
+                <label class="col-label">Sección <span class="req">*</span></label>
+                <select class="col-input" name="idsecciones" [(ngModel)]="f.idsecciones">
+                  <option [ngValue]="null" disabled>Seleccione…</option>
+                  @for (s of seccionesForm; track s.idsecciones) { <option [ngValue]="s.idsecciones">{{ s.seccion }}</option> }
+                </select>
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Encargado -->
+        @if (f.estudiante || f.modo === 'editar') {
+          <div class="form-section">
+            <div class="form-section-title">Encargado que firma el contrato</div>
+            @if (f.padres.length) {
+              <div class="ins-padres">
+                @for (p of f.padres; track p.id) {
+                  <label class="ins-padre" [class.sel]="f.idpadres === p.id">
+                    <input type="radio" name="idpadres" [value]="p.id" [(ngModel)]="f.idpadres"/>
+                    <span>
+                      <strong>{{ p.nombre_completo }}</strong>
+                      <span class="sub-txt">{{ p.parentesco || 'Encargado' }}{{ p.dpi ? ' · DPI ' + p.dpi : ' · sin DPI' }}</span>
+                    </span>
+                  </label>
+                }
+                <label class="ins-padre" [class.sel]="f.idpadres === null">
+                  <input type="radio" name="idpadres" [value]="null" [(ngModel)]="f.idpadres"/>
+                  <span><strong>Sin encargado</strong><span class="sub-txt">El contrato queda con espacios en blanco</span></span>
+                </label>
+              </div>
+            } @else {
+              <p class="field-hint">El estudiante no tiene padres o encargados vinculados; el contrato se generará con espacios en blanco.
+                Puede vincularlos en Comunidad › Estudiantes.</p>
+            }
+          </div>
+        }
+
+        <!-- Cuotas -->
+        @if (f.modo === 'nuevo' && f.idgrados) {
+          <div class="form-section">
+            <div class="form-section-title">Cuotas del ciclo {{ f.ciclo }}</div>
+            @if (f.cargandoCuotas) {
+              <div class="loading-state"><span class="spinner dark"></span> Cargando cuotas...</div>
+            } @else if (!f.cuotas.length) {
+              <div class="ins-aviso">Este grado no tiene cuotas configuradas en el ciclo {{ f.ciclo }}. Puede inscribir igual y agregar las cuotas después desde el estado de cuenta.</div>
+            } @else {
+              <table class="col-table ins-cuotas">
+                <thead><tr><th></th><th>Cuota</th><th>Cobro</th><th class="num">Monto</th><th class="num">Total ciclo</th></tr></thead>
+                <tbody>
+                  @for (c of f.cuotas; track c.idcuotas_ciclos) {
+                    <tr [class.off]="!c.obligatoria && !f.opcionales.has(c.idcuotas_ciclos)">
+                      <td>
+                        @if (c.obligatoria) { <input type="checkbox" checked disabled title="Obligatoria"/> }
+                        @else { <input type="checkbox" [checked]="f.opcionales.has(c.idcuotas_ciclos)" (change)="toggleOpcional(c.idcuotas_ciclos)"/> }
+                      </td>
+                      <td>{{ c.cuota }} @if (!c.obligatoria) { <span class="chip accent">Opcional</span> }</td>
+                      <td class="nowrap">{{ c.periodicidad === 'Mensual' ? c.cobros + ' cobros (día ' + c.dia_limite + ')' : 'Una vez' }}</td>
+                      <td class="num nowrap">{{ q(c.monto) }}</td>
+                      <td class="num nowrap">{{ q(c.monto * c.cobros) }}</td>
+                    </tr>
+                  }
+                </tbody>
+                <tfoot><tr><td></td><td colspan="3">Total del ciclo</td><td class="num nowrap">{{ q(totalCiclo) }}</td></tr></tfoot>
+              </table>
+            }
+          </div>
+        }
+
+        <div class="field">
+          <label class="col-label">Observaciones</label>
+          <input class="col-input" name="observaciones" [(ngModel)]="f.observaciones" maxlength="255" placeholder="Opcional"/>
+        </div>
+
+        @if (error) { <div class="alert-error">{{ error }}</div> }
+        <div class="modal-actions">
+          <button type="button" class="btn-col ghost" (click)="cerrarForm()">Cancelar</button>
+          <button type="submit" class="btn-col primary" [disabled]="saving || (f.modo === 'nuevo' && (!f.estudiante || !!yaInscrito))">
+            @if (saving) { <span class="spinner"></span> }
+            {{ f.modo === 'nuevo' ? 'Inscribir' : 'Guardar cambios' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- ── Modal: detalle ──────────────────────────────────────────────── -->
+@if (detalle; as d) {
+  <div class="modal-overlay" (click)="cerrarDetalle()">
+    <div class="modal-box modal-xl" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="cerrarDetalle()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar ficha-head">
+        @if (d.estudiante_foto) { <img class="ficha-foto" [src]="urlFoto(d.estudiante_foto)" [alt]="d.estudiante"/> }
+        @else { <span class="ficha-av">{{ iniciales(d.estudiante) }}</span> }
+        <div>
+          <div class="modal-title">{{ d.estudiante }}</div>
+          <div class="modal-sub">{{ d.codigo }} · {{ gradoTexto(d) }} · ciclo {{ d.ciclo }}{{ d.estado === 'Anulada' ? ' · ANULADA' : '' }}</div>
+        </div>
+      </div>
+
+      <div class="detail-tabs">
+        <button class="detail-tab" [class.active]="tab === 'resumen'" (click)="tab = 'resumen'">Inscripción</button>
+        <button class="detail-tab" [class.active]="tab === 'cuenta'" (click)="tab = 'cuenta'">Estado de cuenta</button>
+        <button class="detail-tab" [class.active]="tab === 'contrato'" (click)="tab = 'contrato'">
+          Contrato @if (!d.contrato_firmado && d.estado === 'Activa') { <span class="ins-dot" title="Sin firmar"></span> }
+        </button>
+        <button class="detail-tab" [class.active]="tab === 'bitacora'" (click)="tab = 'bitacora'">Bitácora</button>
+      </div>
+
+      <div class="detail-body">
+        @switch (tab) {
+          @case ('resumen') {
+            @if (d.estado === 'Anulada') {
+              <div class="alert-error">Inscripción anulada el {{ d.fecha_anulacion | date:'dd/MM/yyyy HH:mm' }}: {{ d.motivo_anulacion }}</div>
+            }
+            <div class="ficha-section">
+              <div class="ficha-section-title">Inscripción</div>
+              <div class="ficha-fields">
+                <div class="ficha-field"><span class="ff-label">Código</span><span class="ff-value">{{ d.codigo }}</span></div>
+                <div class="ficha-field"><span class="ff-label">Ciclo escolar</span><span class="ff-value">{{ d.ciclo }}</span></div>
+                <div class="ficha-field"><span class="ff-label">Fecha de inscripción</span><span class="ff-value">{{ d.fecha_inscripcion | date:'dd/MM/yyyy':'UTC' }}</span></div>
+                <div class="ficha-field"><span class="ff-label">Nivel</span><span class="ff-value">{{ d.nivel }}</span></div>
+                @if (d.carrera) { <div class="ficha-field"><span class="ff-label">Carrera</span><span class="ff-value">{{ d.carrera }}</span></div> }
+                <div class="ficha-field"><span class="ff-label">Grado</span><span class="ff-value">{{ d.grado }}</span></div>
+                <div class="ficha-field"><span class="ff-label">Sección</span><span class="ff-value">{{ d.seccion || '—' }}</span></div>
+                <div class="ficha-field"><span class="ff-label">Estado</span><span class="ff-value">{{ d.estado }}</span></div>
+                @if (d.observaciones) { <div class="ficha-field full"><span class="ff-label">Observaciones</span><span class="ff-value">{{ d.observaciones }}</span></div> }
+              </div>
+            </div>
+            <div class="ficha-section">
+              <div class="ficha-section-title">Encargado</div>
+              <div class="ficha-fields">
+                <div class="ficha-field"><span class="ff-label">Nombre</span><span class="ff-value">{{ d.encargado || '—' }}</span></div>
+                <div class="ficha-field"><span class="ff-label">DPI</span><span class="ff-value">{{ d.encargado_dpi || '—' }}</span></div>
+                <div class="ficha-field"><span class="ff-label">Teléfono</span><span class="ff-value">{{ d.encargado_telefono || '—' }}</span></div>
+              </div>
+            </div>
+            <div class="ficha-section">
+              <div class="ficha-section-title">Cuenta</div>
+              <div class="ficha-fields">
+                <div class="ficha-field"><span class="ff-label">Saldo pendiente</span><span class="ff-value">{{ q(d.saldo_pendiente) }}</span></div>
+                <div class="ficha-field"><span class="ff-label">Cuotas pendientes</span><span class="ff-value">{{ d.cargos_pendientes }}</span></div>
+                <div class="ficha-field"><span class="ff-label">Cuotas vencidas</span><span class="ff-value" [class.mal]="d.cargos_vencidos">{{ d.cargos_vencidos }}</span></div>
+              </div>
+            </div>
+            <div class="ficha-section">
+              <div class="ficha-section-title">Registro</div>
+              <div class="ficha-fields">
+                <div class="ficha-field"><span class="ff-label">Registrado por</span><span class="ff-value">{{ d.usuario_registro || '—' }}</span></div>
+                <div class="ficha-field"><span class="ff-label">Fecha de registro</span><span class="ff-value">{{ d.fecha_creacion | date:'dd/MM/yyyy HH:mm' }}</span></div>
+              </div>
+            </div>
+          }
+          @case ('cuenta') {
+            <app-estado-cuenta [idinscripcion]="d.idinscripciones" (cambio)="refrescarDetalle()"/>
+          }
+          @case ('contrato') {
+            <div class="ins-contrato">
+              <div class="ins-doc">
+                <div class="ins-doc-ico">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8M8 17h5"/></svg>
+                </div>
+                <div class="ins-doc-info">
+                  <strong>Contrato para firmar</strong>
+                  <span class="sub-txt">Se genera con los datos actuales de la inscripción, el encargado y las cuotas pactadas.</span>
+                </div>
+                <div class="ins-doc-act">
+                  <button type="button" class="btn-col outline sm" (click)="verContrato(d)" [disabled]="abriendo === 'contrato'">Ver</button>
+                  <button type="button" class="btn-col primary sm" (click)="descargarContrato(d)" [disabled]="abriendo === 'contrato'">
+                    @if (abriendo === 'contrato') { <span class="spinner"></span> } Descargar PDF
+                  </button>
+                </div>
+              </div>
+
+              <div class="ins-doc" [class.ok]="d.contrato_firmado">
+                <div class="ins-doc-ico">
+                  @if (d.contrato_firmado) {
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="8 15 11 18 16 12"/></svg>
+                  } @else {
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3-3 3 3"/></svg>
+                  }
+                </div>
+                <div class="ins-doc-info">
+                  <strong>Contrato firmado</strong>
+                  @if (d.contrato_firmado) {
+                    <span class="sub-txt">Cargado el {{ d.contrato_fecha | date:'dd/MM/yyyy HH:mm' }}</span>
+                  } @else {
+                    <span class="sub-txt">Aún no se ha cargado. Escanee el contrato firmado (PDF o foto, máx. 15 MB).</span>
+                  }
+                </div>
+                <div class="ins-doc-act">
+                  @if (d.contrato_firmado) {
+                    <button type="button" class="btn-col outline sm" (click)="verFirmado(d)" [disabled]="abriendo === 'firmado'">Ver</button>
+                    <button type="button" class="btn-col outline sm" (click)="verFirmado(d, true)" [disabled]="abriendo === 'firmado'">Descargar</button>
+                  }
+                  @if (d.estado === 'Activa' && (puedeA || puedeE)) {
+                    <label class="btn-col sm" [class.primary]="!d.contrato_firmado" [class.outline]="d.contrato_firmado" [class.disabled]="subiendo">
+                      @if (subiendo) { <span class="spinner dark"></span> }
+                      {{ d.contrato_firmado ? 'Reemplazar' : 'Subir firmado' }}
+                      <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden (change)="subirFirmado(d, $event)" [disabled]="subiendo"/>
+                    </label>
+                  }
+                  @if (d.contrato_firmado && puedeE) {
+                    <button type="button" class="btn-col ghost sm" (click)="quitarFirmado(d)">Quitar</button>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+          @case ('bitacora') {
+            <app-bitacora-tab tabla="inscripciones" [idregistro]="d.idinscripciones"></app-bitacora-tab>
+          }
+        }
+      </div>
+
+      <div class="modal-actions" style="margin-top:16px">
+        @if (puedeD && d.estado === 'Activa') {
+          <button class="btn-col ghost ins-anular" (click)="anular(d)">Anular inscripción</button>
+        }
+        <button class="btn-col ghost" (click)="cerrarDetalle()">Cerrar</button>
+        @if (puedeE && d.estado === 'Activa') {
+          <button class="btn-col primary" (click)="editar(d)">Editar</button>
+        }
+      </div>
+    </div>
+  </div>
+}

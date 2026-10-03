@@ -1,0 +1,32 @@
+# Node modules
+/backend/node_modules/
+/frontend/node_modules/
+
+# Logs
+npm-debug.log
+backend/logs/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Multi-tenant: configuración real de clientes (solo va backend/tenants.example.json)
+backend/tenants.json
+
+# Build / temporales
+/frontend/dist/
+**/out-tsc/
+**/.angular/cache/
+
+# OS / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Fotos y archivos subidos por los usuarios
+backend/public/files/
+
+# Expediente privado de estudiantes (no público)
+backend/storage/

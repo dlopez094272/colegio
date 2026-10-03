@@ -1,0 +1,35 @@
+<div class="fs-box" [class.open]="abierto" (click)="enfocar()">
+  @for (f of seleccion; track f.idformaciones_academicas) {
+    <span class="fs-chip" [class.inactiva]="!f.activo" [title]="f.activo ? f.formacion : f.formacion + ' (inactiva en el catálogo)'">
+      {{ f.formacion }}
+      <button type="button" class="fs-chip-x" (click)="quitar(f); $event.stopPropagation()" [attr.aria-label]="'Quitar ' + f.formacion">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </span>
+  }
+  <input #inp class="fs-input" type="text" [(ngModel)]="texto" [ngModelOptions]="{standalone: true}"
+         (ngModelChange)="onTexto()" (focus)="abrir()" (keydown)="onKeydown($event)"
+         [placeholder]="seleccion.length ? 'Agregar otra...' : 'Escriba para buscar y agregar formaciones...'" autocomplete="off"/>
+
+  @if (abierto) {
+    <div class="fs-results" (click)="$event.stopPropagation()">
+      @for (f of filtradas; track f.idformaciones_academicas; let i = $index) {
+        <button type="button" class="fs-result" [class.active]="i === activo" (mouseenter)="activo = i" (click)="agregar(f)">
+          {{ f.formacion }}
+        </button>
+      }
+      @if (ofrecerCrear) {
+        <button type="button" class="fs-result crear" [class.active]="activo === filtradas.length"
+                (mouseenter)="activo = filtradas.length" (click)="crear()" [disabled]="creando">
+          @if (creando) { <span class="spinner dark"></span> } @else { + }
+          Agregar «{{ texto.trim() }}» al catálogo
+        </button>
+      }
+      @if (!filtradas.length && !ofrecerCrear) {
+        <div class="fs-empty">
+          {{ texto.trim() ? 'Sin coincidencias en el catálogo.' : 'Todas las formaciones del catálogo ya están agregadas.' }}
+        </div>
+      }
+    </div>
+  }
+</div>

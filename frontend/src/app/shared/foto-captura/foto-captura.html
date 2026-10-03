@@ -1,0 +1,68 @@
+<div class="fc">
+  <div class="fc-frame" [class.vacia]="!imagenVisible">
+    @if (imagenVisible) {
+      <img [src]="imagenVisible" alt="Fotografía del estudiante"/>
+    } @else {
+      <div class="fc-placeholder">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0114 0v1" stroke-linecap="round"/></svg>
+        <span>{{ iniciales || 'Sin foto' }}</span>
+      </div>
+    }
+    @if (procesando) { <div class="fc-busy"><span class="spinner dark"></span></div> }
+    @if (preview) { <span class="fc-tag">Sin guardar</span> }
+  </div>
+
+  <div class="fc-actions">
+    @if (camaraDisponible) {
+      <button type="button" class="btn-col dark sm" (click)="abrirCamara()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Tomar foto
+      </button>
+    }
+    <button type="button" class="btn-col outline sm" (click)="elegirArchivo()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Subir imagen
+    </button>
+    @if (imagenVisible) {
+      <button type="button" class="fc-link" (click)="quitar()">Quitar foto</button>
+    }
+  </div>
+  <input #fileInput type="file" accept="image/jpeg,image/png,image/webp" hidden (change)="onArchivo($event)"/>
+  @if (error) { <div class="fc-error">{{ error }}</div> }
+</div>
+
+<!-- ── Captura con cámara ─────────────────────────────────────────── -->
+@if (camaraAbierta) {
+  <div class="modal-overlay fc-cam-overlay">
+    <div class="fc-cam">
+      <div class="fc-cam-head">
+        <span>Tomar fotografía</span>
+        <button type="button" class="fc-cam-close" (click)="cerrarCamara()" title="Cerrar">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="fc-cam-view">
+        @if (errorCamara) {
+          <div class="fc-cam-msg">{{ errorCamara }}</div>
+        } @else {
+          <video #video autoplay playsinline muted></video>
+          <div class="fc-guia"></div>
+          @if (iniciandoCamara) { <div class="fc-cam-msg">Iniciando cámara...</div> }
+        }
+      </div>
+
+      <div class="fc-cam-actions">
+        @if (camaras.length > 1 && !errorCamara) {
+          <button type="button" class="btn-col ghost sm fc-light" (click)="cambiarCamara()">↺ Cambiar cámara</button>
+        }
+        <span class="fc-hint">Centre el rostro dentro del marco</span>
+        <button type="button" class="btn-col ghost fc-light" (click)="cerrarCamara()">Cancelar</button>
+        <button type="button" class="btn-col primary" [disabled]="!!errorCamara || iniciandoCamara" (click)="capturar()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="7"/></svg>
+          Capturar
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,53 @@
+{
+  "_comment": "Plantilla multi-tenant (un colegio por bloque). Copiar a tenants.json (gitignored) y completar. 'hosts' determina qué dominios/puertos resuelven a cada colegio.",
+  "dev": {
+    "_comment": "Tenant de desarrollo local — incluir siempre en tenants.json",
+    "hosts": [
+      "localhost:3100",
+      "localhost:4200",
+      "127.0.0.1:3100",
+      "127.0.0.1:4200",
+      "localhost",
+      "127.0.0.1"
+    ],
+    "db": {
+      "host": "localhost",
+      "port": 3306,
+      "database": "colegio",
+      "user": "root",
+      "password": ""
+    },
+    "uploadsDir": "dev",
+    "jwtSecret": "REEMPLAZAR_POR_CLAVE_LOCAL",
+    "colegio": {
+      "_comment": "Datos impresos en contratos, recibos y estados de cuenta",
+      "nombre": "Colegio (desarrollo)",
+      "direccion": "",
+      "telefono": "",
+      "nit": ""
+    }
+  },
+  "colegio1": {
+    "_comment": "Ejemplo de cliente en producción. Duplicar este bloque por cada colegio.",
+    "hosts": [
+      "colegio1.tudominio.com",
+      "www.colegio1.tudominio.com"
+    ],
+    "db": {
+      "host": "localhost",
+      "port": 3306,
+      "database": "usuario_colegio1",
+      "user": "usuario_db",
+      "password": "CONTRASEÑA_BD"
+    },
+    "uploadsDir": "colegio1",
+    "jwtSecret": "CLAVE_ALEATORIA_UNICA_POR_CLIENTE",
+    "colegio": {
+      "_comment": "Datos impresos en contratos, recibos y estados de cuenta",
+      "nombre": "Colegio Ejemplo",
+      "direccion": "",
+      "telefono": "",
+      "nit": ""
+    }
+  }
+}

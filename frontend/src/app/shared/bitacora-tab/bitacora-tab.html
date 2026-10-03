@@ -1,0 +1,105 @@
+@if (loading) {
+  <div class="loading-state" style="padding:40px 0;">
+    <span class="spinner dark"></span>
+    Cargando bitácora...
+  </div>
+}
+
+@if (!loading && records.length === 0) {
+  <div class="empty-state" style="padding:32px 0;">
+    <span class="empty-icon">📋</span>
+    <p>Sin registros en la bitácora para este elemento.</p>
+  </div>
+}
+
+@if (!loading && records.length > 0) {
+  <div class="bitacora-list">
+    @for (rec of records; track rec.idbitacora) {
+      <div class="bitacora-item" [class.expanded]="expandedId === rec.idbitacora">
+
+        <!-- Fila principal -->
+        <div class="bitacora-row" (click)="hasDiff(rec) && toggleExpand(rec.idbitacora)">
+          <div class="bit-accion">
+            <span [class]="accionClass(rec.accion)">{{ rec.accion }}</span>
+          </div>
+          <div class="bit-info">
+            <div class="bit-desc">{{ rec.descripcion || '—' }}</div>
+            <div class="bit-meta">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              {{ rec.fecha | date:'dd/MM/yyyy HH:mm:ss' }}
+              &nbsp;·&nbsp;
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              {{ rec.usuario_nombre || 'Sistema' }}
+              @if (rec.ip) {
+                &nbsp;·&nbsp;
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                {{ rec.ip }}
+              }
+            </div>
+          </div>
+          @if (hasDiff(rec)) {
+            <div class="bit-expand-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                   [style.transform]="expandedId === rec.idbitacora ? 'rotate(180deg)' : ''">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </div>
+          }
+        </div>
+
+        <!-- Detalle de cambios (expandible) -->
+        @if (expandedId === rec.idbitacora && hasDiff(rec)) {
+          @let diffRows = getDiffRows(rec);
+          @if (diffRows.length > 0) {
+            <div class="bit-diff">
+              <table class="bit-diff-table">
+                <thead>
+                  <tr>
+                    <th>Campo</th>
+                    <th>Antes</th>
+                    <th>Después</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of diffRows; track row.campo) {
+                    <tr>
+                      <td class="bit-campo">{{ row.campo }}</td>
+                      <td class="bit-val before">{{ row.antes || '—' }}</td>
+                      <td class="bit-val after">{{ row.despues || '—' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <div class="bit-diff">
+              <div class="bit-raw">
+                @if (rec.valores_antes) {
+                  <div class="bit-raw-block">
+                    <div class="bit-raw-label">Antes</div>
+                    <pre>{{ formatJson(rec.valores_antes) }}</pre>
+                  </div>
+                }
+                @if (rec.valores_despues) {
+                  <div class="bit-raw-block">
+                    <div class="bit-raw-label">Después</div>
+                    <pre>{{ formatJson(rec.valores_despues) }}</pre>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        }
+
+      </div>
+    }
+  </div>
+
+  <app-paginator
+    [total]="total"
+    [page]="page"
+    [pageSize]="pageSize"
+    (pageChange)="onPageChange($event)"
+    (pageSizeChange)="onPageSizeChange($event)">
+  </app-paginator>
+}

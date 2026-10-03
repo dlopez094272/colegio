@@ -1,0 +1,14 @@
+<div class="modal-overlay warning-overlay">
+  <div class="warning-box">
+    <div class="warning-icon">⚠️</div>
+    <h3 class="warning-title">Sesión a punto de cerrar</h3>
+    <p class="warning-msg">
+      Tu sesión cerrará en <strong class="countdown">{{ formatTime(session.countdown()) }}</strong>
+      por inactividad.
+    </p>
+    <div class="warning-actions">
+      <button class="btn-col danger" (click)="onClose()">Cerrar sesión</button>
+      <button class="btn-col primary" (click)="onKeep()">Mantener sesión</button>
+    </div>
+  </div>
+</div>

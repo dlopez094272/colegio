@@ -1,0 +1,99 @@
+<div class="page-header">
+  <div>
+    <h1>
+      <span class="h1-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14" stroke-linecap="round"/></svg>
+      </span>
+      Bitácora del sistema
+    </h1>
+    <p class="page-subtitle">Historial de inserciones, modificaciones y asignaciones realizadas por los usuarios</p>
+  </div>
+</div>
+
+<div class="col-card filtros">
+  <div class="field">
+    <label class="col-label">Buscar</label>
+    <input class="col-input" [(ngModel)]="search" (ngModelChange)="onSearch()" placeholder="Descripción o usuario..."/>
+  </div>
+  <div class="field">
+    <label class="col-label">Módulo</label>
+    <select class="col-input" [(ngModel)]="tabla" (ngModelChange)="filtrar()">
+      <option value="">Todos</option>
+      @for (t of tablas; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+    </select>
+  </div>
+  <div class="field">
+    <label class="col-label">Acción</label>
+    <select class="col-input" [(ngModel)]="accion" (ngModelChange)="filtrar()">
+      <option value="">Todas</option>
+      @for (a of acciones; track a) { <option [value]="a">{{ a }}</option> }
+    </select>
+  </div>
+  <div class="field">
+    <label class="col-label">Desde</label>
+    <input class="col-input" type="date" [(ngModel)]="fecha_desde" (ngModelChange)="filtrar()"/>
+  </div>
+  <div class="field">
+    <label class="col-label">Hasta</label>
+    <input class="col-input" type="date" [(ngModel)]="fecha_hasta" (ngModelChange)="filtrar()"/>
+  </div>
+  <button class="btn-col ghost" (click)="limpiar()">Limpiar</button>
+</div>
+
+<div class="col-card" style="padding:0; overflow:hidden;">
+  <div class="table-scroll-wrap">
+    <table class="col-table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Módulo</th>
+          <th>Registro</th>
+          <th>Acción</th>
+          <th>Descripción</th>
+          <th>Usuario</th>
+          <th>IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (loading) {
+          <tr><td colspan="7"><div class="loading-state"><span class="spinner dark"></span> Cargando...</div></td></tr>
+        } @else {
+          @for (r of rows; track r.idbitacora) {
+            <tr [class.clickable]="r.valores_antes || r.valores_despues" (click)="toggle(r)">
+              <td class="nowrap">{{ r.fecha | date:'dd/MM/yyyy HH:mm:ss' }}</td>
+              <td class="nowrap">{{ etiquetaTabla(r.tabla) }}</td>
+              <td class="id-col">#{{ r.idregistro }}</td>
+              <td><span [class]="accionClass(r.accion)">{{ r.accion }}</span></td>
+              <td>{{ r.descripcion || '—' }}</td>
+              <td class="nowrap">{{ r.usuario_nombre || 'Sistema' }}</td>
+              <td class="nowrap muted">{{ r.ip || '—' }}</td>
+            </tr>
+            @if (expandedId === r.idbitacora) {
+              <tr class="diff-row">
+                <td colspan="7">
+                  @let filas = diff(r);
+                  @if (filas.length) {
+                    <table class="diff-table">
+                      <thead><tr><th>Campo</th><th>Antes</th><th>Después</th></tr></thead>
+                      <tbody>
+                        @for (f of filas; track f.campo) {
+                          <tr><td class="campo">{{ f.campo }}</td><td class="antes">{{ f.antes || '—' }}</td><td class="despues">{{ f.despues || '—' }}</td></tr>
+                        }
+                      </tbody>
+                    </table>
+                  } @else {
+                    <span class="muted">Sin diferencias de valores.</span>
+                  }
+                </td>
+              </tr>
+            }
+          } @empty {
+            <tr><td colspan="7"><div class="empty-state"><p>Sin movimientos para los filtros seleccionados.</p></div></td></tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+  <app-paginator [total]="total" [page]="page" [pageSize]="pageSize"
+    (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)"></app-paginator>
+</div>

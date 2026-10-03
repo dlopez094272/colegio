@@ -1,0 +1,323 @@
+<!-- ── Encabezado ──────────────────────────────────────────────────── -->
+<div class="page-header">
+  <div>
+    <h1>
+      <span class="h1-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="12" rx="1.5"/><path d="M7 21l3-6M17 21l-3-6M8 8h5M8 11h8"/></svg>
+      </span>
+      Personal docente
+    </h1>
+    <p class="page-subtitle">Registro de maestros y coordinadores con su formación académica</p>
+  </div>
+  @if (puedeAgregar) {
+    <button class="btn-col primary" (click)="openNew()">+ Nuevo docente</button>
+  }
+</div>
+
+<!-- ── Barra de búsqueda / filtros ─────────────────────────────────── -->
+<div class="col-card list-toolbar">
+  <input class="col-input" type="text" [(ngModel)]="search" (ngModelChange)="onSearch()"
+         placeholder="Buscar por nombre, DPI, NIT, correo o teléfono..."/>
+  <div class="seg-filter">
+    <button [class.active]="tipoFiltro === ''" (click)="setTipo('')">Todos</button>
+    <button [class.active]="tipoFiltro === 'Maestro'" (click)="setTipo('Maestro')">Maestros</button>
+    <button [class.active]="tipoFiltro === 'Coordinador'" (click)="setTipo('Coordinador')">Coordinadores</button>
+  </div>
+  <select class="col-input formacion-filtro" [(ngModel)]="formacionFiltro" (ngModelChange)="onFormacionFiltro()">
+    <option [ngValue]="null">Toda formación académica</option>
+    @for (f of formaciones; track f.idformaciones_academicas) {
+      <option [ngValue]="f.idformaciones_academicas">{{ f.formacion }}</option>
+    }
+  </select>
+  <div class="seg-filter">
+    <button [class.active]="estado === '1'" (click)="setEstado('1')">Activos</button>
+    <button [class.active]="estado === '0'" (click)="setEstado('0')">Inactivos</button>
+    <button [class.active]="estado === ''"  (click)="setEstado('')">Todos</button>
+  </div>
+  <span class="toolbar-count">{{ total }} registro{{ total === 1 ? '' : 's' }}</span>
+</div>
+
+<!-- ── Tabla ───────────────────────────────────────────────────────── -->
+<div class="col-card table-card">
+  <div class="table-scroll-wrap">
+    <table class="col-table">
+      <thead>
+        <tr>
+          <th class="row-menu-col"></th>
+          <th appThSort field="iddocentes" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">ID</th>
+          <th appThSort field="nombre_completo" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Nombre completo</th>
+          <th appThSort field="tipo_personal" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Tipo</th>
+          <th appThSort field="dpi" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">DPI</th>
+          <th>Formación académica</th>
+          <th appThSort field="telefono_celular" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Celular</th>
+          <th appThSort field="fecha_ingreso" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Ingreso</th>
+          <th appThSort field="activo" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (loading) {
+          <tr><td colspan="9"><div class="loading-state"><span class="spinner dark"></span> Cargando...</div></td></tr>
+        } @else {
+          @for (r of rows; track r.iddocentes) {
+            <tr (dblclick)="openView(r, 'info')">
+              <td class="row-menu-col" (click)="$event.stopPropagation()">
+                <app-row-menu [actions]="getRowActions(r)"></app-row-menu>
+              </td>
+              <td class="id-col">{{ r.iddocentes }}</td>
+              <td>
+                <div class="name-cell">
+                  @if (r.foto) {
+                    <img class="grid-foto" [src]="urlFoto(r.foto)" [alt]="r.nombre_completo" loading="lazy" (click)="openView(r, 'info'); $event.stopPropagation()"/>
+                  } @else {
+                    <span class="mini-avatar est">{{ iniciales(r.primer_nombre + ' ' + r.primer_apellido) }}</span>
+                  }
+                  <div>
+                    <strong>{{ r.nombre_completo }}</strong>
+                    @if (r.email) { <div class="sub-txt">{{ r.email }}</div> }
+                    @else if (r.direccion) { <div class="sub-txt">{{ r.direccion }}</div> }
+                  </div>
+                </div>
+              </td>
+              <td><span class="tipo-badge" [class.coord]="r.tipo_personal === 'Coordinador'">{{ r.tipo_personal }}</span></td>
+              <td class="nowrap">{{ r.dpi || '—' }}</td>
+              <td>
+                @if (formacionesLista(r).length; as n) {
+                  <div class="chips">
+                    @for (f of formacionesLista(r).slice(0, 2); track $index) { <span class="chip">{{ f }}</span> }
+                    @if (n > 2) { <span class="chip accent" [title]="formacionesLista(r).slice(2).join(', ')">+{{ n - 2 }}</span> }
+                  </div>
+                } @else {
+                  <span class="muted">Sin registrar</span>
+                }
+              </td>
+              <td class="nowrap">{{ r.telefono_celular || '—' }}</td>
+              <td class="nowrap">
+                @if (r.fecha_ingreso) { {{ r.fecha_ingreso | date:'dd/MM/yyyy':'UTC' }} } @else { — }
+              </td>
+              <td>
+                @if (r.activo) { <span class="badge success">Activo</span> }
+                @else { <span class="badge danger">Inactivo</span> }
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="9">
+              <div class="empty-state">
+                <span class="empty-icon">🧑‍🏫</span>
+                <p>{{ search || tipoFiltro || formacionFiltro ? 'Sin resultados para los filtros aplicados.' : 'No hay docentes registrados.' }}</p>
+              </div>
+            </td></tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+  <app-paginator [total]="total" [page]="page" [pageSize]="pageSize"
+    (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)">
+  </app-paginator>
+</div>
+
+<!-- ── Modal: formulario ───────────────────────────────────────────── -->
+@if (showForm) {
+  <div class="modal-overlay">
+    <div class="modal-box modal-xl persona-modal" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="closeForm()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">{{ isEdit ? 'Editar' : 'Nuevo' }} docente</div>
+        <div class="modal-sub">
+          @if (isEdit) { Registro #{{ editId }} · los cambios quedan en la bitácora }
+          @else { Maestro o coordinador: datos personales, fotografía y formación académica }
+        </div>
+      </div>
+
+      @if (loadingForm) {
+        <div class="loading-state"><span class="spinner dark"></span> Cargando registro...</div>
+      } @else {
+        <form class="modal-form" (ngSubmit)="save()">
+          <div class="form-section">
+            <div class="datos-layout con-foto">
+              <div class="foto-col">
+                <div class="form-section-title">Fotografía</div>
+                <app-foto-captura
+                  [fotoUrl]="urlFoto(fotoActual)"
+                  [iniciales]="iniciales(form.primer_nombre + ' ' + form.primer_apellido)"
+                  (cambio)="onFotoCambio($event)"/>
+              </div>
+              <div class="datos-col">
+                <div class="tipo-row">
+                  <span class="col-label">Tipo de personal <span class="req">*</span></span>
+                  <div class="seg-filter tipo-seg">
+                    @for (t of tipos; track t) {
+                      <button type="button" [class.active]="tipoPersonal === t" (click)="tipoPersonal = t">{{ t }}</button>
+                    }
+                  </div>
+                </div>
+                <app-persona-campos [model]="form" tipo="docente" [estadosCiviles]="estadosCiviles"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Datos laborales</div>
+            <div class="field-grid">
+              <div class="field span-2">
+                <label class="col-label">Correo electrónico</label>
+                <input class="col-input" type="email" name="email" [(ngModel)]="email" maxlength="145" placeholder="correo@ejemplo.com"/>
+              </div>
+              <div class="field">
+                <label class="col-label">Fecha de ingreso</label>
+                <input class="col-input" type="date" name="fecha_ingreso" [(ngModel)]="fechaIngreso"/>
+              </div>
+              <div class="field span-3">
+                <label class="col-label">
+                  Formación académica
+                  <span class="hint-inline">{{ formacionesSel.length }} agregada{{ formacionesSel.length === 1 ? '' : 's' }} · puede agregar varias</span>
+                </label>
+                <app-formaciones-select [opciones]="formaciones" [(seleccion)]="formacionesSel" (creada)="onFormacionCreada($event)"/>
+              </div>
+            </div>
+
+            <div class="estado-row">
+              <label class="switch-wrap">
+                <input type="checkbox" [checked]="activo === 1" (change)="activo = $any($event.target).checked ? 1 : 0"/>
+                <span class="switch-slider"></span>
+                <span class="switch-label">
+                  {{ activo ? 'Activo' : 'Inactivo' }}
+                  <span class="switch-desc">Los registros inactivos se ocultan del listado por defecto</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          @if (error) { <div class="alert-error">{{ error }}</div> }
+
+          <div class="modal-actions">
+            <button type="button" class="btn-col ghost" (click)="closeForm()">Cancelar</button>
+            <button type="submit" class="btn-col primary" [disabled]="saving">
+              @if (saving) { <span class="spinner"></span> }
+              {{ isEdit ? 'Guardar cambios' : 'Registrar docente' }}
+            </button>
+          </div>
+        </form>
+      }
+    </div>
+  </div>
+}
+
+<!-- ── Modal: ficha ────────────────────────────────────────────────── -->
+@if (showView && viewItem) {
+  <div class="modal-overlay" (click)="closeView()">
+    <div class="modal-box modal-lg" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="closeView()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar ficha-head">
+        @if (viewItem.foto) {
+          <img class="ficha-foto" [src]="urlFoto(viewItem.foto)" [alt]="viewItem.nombre_completo"/>
+        } @else {
+          <span class="ficha-av">{{ iniciales(viewItem.primer_nombre + ' ' + viewItem.primer_apellido) }}</span>
+        }
+        <div>
+          <div class="modal-title">{{ viewItem.nombre_completo }}</div>
+          <div class="modal-sub">
+            {{ viewItem.tipo_personal }} #{{ viewItem.iddocentes }} ·
+            {{ viewItem.activo ? 'Activo' : 'Inactivo' }}
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-tabs">
+        <button class="detail-tab" [class.active]="viewTab === 'info'" (click)="viewTab = 'info'">Información</button>
+        <button class="detail-tab" [class.active]="viewTab === 'bitacora'" (click)="viewTab = 'bitacora'">Bitácora</button>
+      </div>
+
+      <div class="detail-body">
+        @if (viewTab === 'info') {
+          <div class="ficha-section">
+            <div class="ficha-section-title">Datos laborales</div>
+            <div class="ficha-fields">
+              <div class="ficha-field"><span class="ff-label">Tipo de personal</span><span class="ff-value">{{ viewItem.tipo_personal }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Fecha de ingreso</span>
+                <span class="ff-value">
+                  @if (viewItem.fecha_ingreso) {
+                    {{ viewItem.fecha_ingreso | date:'dd/MM/yyyy':'UTC' }}
+                    ({{ antiguedad(viewItem.fecha_ingreso) }} año{{ antiguedad(viewItem.fecha_ingreso) === 1 ? '' : 's' }})
+                  } @else { — }
+                </span>
+              </div>
+              <div class="ficha-field"><span class="ff-label">Correo electrónico</span><span class="ff-value">{{ viewItem.email || '—' }}</span></div>
+              <div class="ficha-field full">
+                <span class="ff-label">Formación académica</span>
+                <span class="ff-value">
+                  @if (viewItem.formaciones?.length) {
+                    <span class="chips">
+                      @for (f of viewItem.formaciones; track f.idformaciones_academicas) { <span class="chip">{{ f.formacion }}</span> }
+                    </span>
+                  } @else if (formacionesLista(viewItem).length) {
+                    <span class="chips">
+                      @for (f of formacionesLista(viewItem); track $index) { <span class="chip">{{ f }}</span> }
+                    </span>
+                  } @else { — }
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="ficha-section">
+            <div class="ficha-section-title">Datos personales</div>
+            <div class="ficha-fields">
+              <div class="ficha-field"><span class="ff-label">Primer nombre</span><span class="ff-value">{{ viewItem.primer_nombre }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Segundo nombre</span><span class="ff-value">{{ viewItem.segundo_nombre || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Primer apellido</span><span class="ff-value">{{ viewItem.primer_apellido }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Segundo apellido</span><span class="ff-value">{{ viewItem.segundo_apellido || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Apellido de casada</span><span class="ff-value">{{ viewItem.apellido_casada || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Fecha de nacimiento</span>
+                <span class="ff-value">
+                  @if (viewItem.fecha_nacimiento) { {{ viewItem.fecha_nacimiento | date:'dd/MM/yyyy':'UTC' }} ({{ viewItem.edad }} años) } @else { — }
+                </span>
+              </div>
+              <div class="ficha-field"><span class="ff-label">Estado civil</span><span class="ff-value">{{ viewItem.estado_civil || '—' }}</span></div>
+            </div>
+          </div>
+          <div class="ficha-section">
+            <div class="ficha-section-title">Documentos</div>
+            <div class="ficha-fields">
+              <div class="ficha-field"><span class="ff-label">DPI</span><span class="ff-value">{{ viewItem.dpi || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">NIT</span><span class="ff-value">{{ viewItem.nit || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Pasaporte</span><span class="ff-value">{{ viewItem.pasaporte || '—' }}</span></div>
+            </div>
+          </div>
+          <div class="ficha-section">
+            <div class="ficha-section-title">Contacto</div>
+            <div class="ficha-fields">
+              <div class="ficha-field full"><span class="ff-label">Dirección</span><span class="ff-value">{{ viewItem.direccion || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Teléfono de casa</span><span class="ff-value">{{ viewItem.telefono_casa || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Teléfono celular</span><span class="ff-value">{{ viewItem.telefono_celular || '—' }}</span></div>
+            </div>
+          </div>
+          <div class="ficha-section">
+            <div class="ficha-section-title">Registro</div>
+            <div class="ficha-fields">
+              <div class="ficha-field"><span class="ff-label">Registrado por</span><span class="ff-value">{{ viewItem.usuario_registro || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">Fecha de registro</span><span class="ff-value">{{ viewItem.fecha_creacion | date:'dd/MM/yyyy HH:mm' }}</span></div>
+              @if (viewItem.fecha_modificacion) {
+                <div class="ficha-field"><span class="ff-label">Última modificación</span><span class="ff-value">{{ viewItem.fecha_modificacion | date:'dd/MM/yyyy HH:mm' }}</span></div>
+              }
+            </div>
+          </div>
+        }
+
+        @if (viewTab === 'bitacora') {
+          <app-bitacora-tab tabla="docentes" [idregistro]="viewItem.iddocentes"></app-bitacora-tab>
+        }
+      </div>
+
+      <div class="modal-actions" style="margin-top:16px">
+        <button class="btn-col ghost" (click)="closeView()">Cerrar</button>
+        @if (puedeEditar) {
+          <button class="btn-col primary" (click)="openEdit(viewItem.iddocentes)">Editar</button>
+        }
+      </div>
+    </div>
+  </div>
+}

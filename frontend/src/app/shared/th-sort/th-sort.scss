@@ -1,0 +1,22 @@
+:host {
+  user-select: none;
+}
+
+.th-sort-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+
+  &:hover { color: var(--clr-primary, #3b82f6); }
+}
+
+.th-sort-ico {
+  display: inline-flex;
+  align-items: center;
+  color: var(--clr-text-muted, currentColor);
+  opacity: 0.55;
+
+  &.active { color: var(--clr-primary, #3b82f6); opacity: 1; }
+}

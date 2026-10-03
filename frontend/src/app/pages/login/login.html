@@ -1,0 +1,74 @@
+<div class="login-wrapper">
+  <div class="bg-glow left"></div>
+  <div class="bg-glow right"></div>
+  <canvas #networkCanvas class="login-network-bg"></canvas>
+
+  <div class="login-card">
+
+    <div class="logo-wrap">
+      <div class="login-brand-icon">
+        <svg viewBox="0 0 24 24" width="30" height="30" fill="none">
+          <path d="M12 4 2 9l10 5 10-5-10-5z" fill="currentColor"/>
+          <path d="M6 11.5V16c0 1.7 2.7 3.2 6 3.2s6-1.5 6-3.2v-4.5l-6 3-6-3z" fill="currentColor" opacity=".75"/>
+          <path d="M21 9.5v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span class="login-brand-name">COLEGIO</span>
+      <span class="login-brand-sub">Sistema de gestión escolar</span>
+    </div>
+
+    <div class="login-subtitle">
+      <span class="dot"></span>
+      ACCESO AL SISTEMA
+      <span class="dot"></span>
+    </div>
+
+    <form (ngSubmit)="onSubmit()" class="login-form">
+
+      <div class="field">
+        <label class="col-label">Usuario</label>
+        <input
+          class="col-input"
+          type="text"
+          [(ngModel)]="codigo"
+          name="codigo"
+          placeholder="Código de usuario o correo electrónico"
+          autocomplete="username"
+          required
+          autofocus/>
+      </div>
+
+      <div class="field">
+        <label class="col-label">Contraseña</label>
+        <input
+          class="col-input"
+          type="password"
+          [(ngModel)]="password"
+          name="password"
+          placeholder="••••••••"
+          autocomplete="current-password"
+          required/>
+      </div>
+
+      @if (error) {
+        <div class="alert-error">{{ error }}</div>
+      }
+
+      <button type="submit" class="btn-col primary login-btn" [disabled]="loading">
+        @if (loading) {
+          <span class="spinner"></span> Verificando...
+        } @else {
+          INGRESAR
+        }
+      </button>
+
+      <div class="forgot-link">
+        <a routerLink="/reset-password">¿Olvidaste tu contraseña?</a>
+      </div>
+    </form>
+
+    <p class="login-footer">
+      Gestión Escolar &copy; {{ currentYear }} &mdash; Control administrativo
+    </p>
+  </div>
+</div>

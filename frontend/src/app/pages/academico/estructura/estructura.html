@@ -1,0 +1,326 @@
+<div class="page-header">
+  <div>
+    <h1>
+      <span class="h1-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="5" rx="1"/><rect x="2" y="17" width="6" height="5" rx="1"/><rect x="16" y="17" width="6" height="5" rx="1"/><path d="M12 7v5M5 17v-2.5a2.5 2.5 0 012.5-2.5h9a2.5 2.5 0 012.5 2.5V17"/></svg>
+      </span>
+      Estructura académica
+    </h1>
+    <p class="page-subtitle">Niveles, carreras, grados y secciones del colegio. Inactivar un registro inactiva también todo lo que depende de él.</p>
+  </div>
+  <div class="header-actions">
+    <div class="seg-switch">
+      <button type="button" [class.active]="vista === 'arbol'" (click)="setVista('arbol')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="9" width="6" height="6" rx="1"/><rect x="16" y="3" width="6" height="5" rx="1"/><rect x="16" y="16" width="6" height="5" rx="1"/><path d="M8 12h4M12 5.5V18.5M12 5.5h4M12 18.5h4"/></svg>
+        Jerarquía
+      </button>
+      <button type="button" [class.active]="vista === 'tabla'" (click)="setVista('tabla')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>
+        Tabla
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Resumen + filtros -->
+<div class="col-card ea-toolbar">
+  <div class="ea-stats">
+    <span class="ea-stat"><b>{{ totales.nivel }}</b> niveles</span>
+    <span class="ea-stat"><b>{{ totales.carrera }}</b> carreras</span>
+    <span class="ea-stat"><b>{{ totales.grado }}</b> grados</span>
+    <span class="ea-stat"><b>{{ totales.seccion }}</b> secciones</span>
+    <span class="muted ea-stat-note">activos</span>
+  </div>
+  <div class="ea-toolbar-actions">
+    <label class="switch-wrap sm-switch">
+      <input type="checkbox" [(ngModel)]="ocultarInactivos"/>
+      <span class="switch-slider"></span>
+      <span class="switch-label">Ocultar inactivos</span>
+    </label>
+    @if (vista === 'arbol') {
+      <button class="btn-col ghost sm" type="button" (click)="expandirTodo()">Expandir todo</button>
+      <button class="btn-col ghost sm" type="button" (click)="colapsarTodo()">Contraer todo</button>
+    }
+  </div>
+</div>
+
+@if (loading && !niveles.length) {
+  <div class="col-card"><div class="loading-state"><span class="spinner dark"></span> Cargando...</div></div>
+} @else if (vista === 'arbol') {
+
+  <!-- ═════════════ VISTA GRÁFICA ═════════════ -->
+  <div class="col-card ea-tree-card">
+    <div class="ea-legend">
+      <span><i class="lg t-nivel"></i>Nivel</span>
+      <span><i class="lg t-carrera"></i>Carrera</span>
+      <span><i class="lg t-grado"></i>Grado</span>
+      <span><i class="lg t-seccion"></i>Sección</span>
+      <span><i class="lg inactivo"></i>Inactivo</span>
+      @if (puedeA) { <em class="muted ea-legend-hint"><b>+</b> a la derecha de un elemento agrega un hijo; <b>+</b> debajo agrega otro al mismo nivel.</em> }
+    </div>
+
+    <div class="ea-tree-scroll">
+      <div class="ea-tree">
+        <div class="ea-branch">
+          <div class="ea-node t-root">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 4 2 9l10 5 10-5-10-5z" fill="currentColor"/><path d="M6 11.5V16c0 1.7 2.7 3.2 6 3.2s6-1.5 6-3.2v-4.5l-6 3-6-3z" fill="currentColor" opacity=".75"/></svg>
+            <span>Colegio</span>
+            @if (puedeA) {
+              <button type="button" class="ea-add ea-add-child" title="Agregar nivel" (click)="nuevo('nivel', null)">+</button>
+            }
+          </div>
+          @if (visibles(niveles).length) {
+            <div class="ea-children">
+              @for (n of visibles(niveles); track n.key) {
+                <ng-container *ngTemplateOutlet="nodoTpl; context: { $implicit: n }"></ng-container>
+              }
+            </div>
+          }
+        </div>
+      </div>
+      @if (!niveles.length) {
+        <div class="empty-state"><p>Aún no hay niveles. Use el botón <b>+</b> junto a “Colegio” para crear el primero.</p></div>
+      }
+    </div>
+  </div>
+
+} @else {
+
+  <!-- ═════════════ VISTA TABLA (maestro-detalle en cascada) ═════════════ -->
+  <div class="md-breadcrumb">
+    @if (nivelSel) {
+      <span class="crumb">{{ nivelSel.nombre }}</span>
+      @if (nivelSel.usaCarreras) { <span class="sep">›</span><span class="crumb" [class.muted]="!carreraSel">{{ carreraSel?.nombre ?? 'Seleccione carrera' }}</span> }
+      <span class="sep">›</span><span class="crumb" [class.muted]="!gradoSel">{{ gradoSel?.nombre ?? 'Seleccione grado' }}</span>
+    } @else {
+      <span class="muted">Seleccione un nivel para ver sus grados y secciones</span>
+    }
+  </div>
+
+  <div class="md-grid" [class.cuatro]="nivelSel?.usaCarreras">
+    <ng-container *ngTemplateOutlet="panelTpl; context: { tipo: 'nivel', padre: null, items: niveles, sel: selNivel, vacio: 'No hay niveles registrados.' }"></ng-container>
+    @if (nivelSel?.usaCarreras) {
+      <ng-container *ngTemplateOutlet="panelTpl; context: { tipo: 'carrera', padre: nivelSel, items: nivelSel!.hijos, sel: selCarrera, vacio: 'Este nivel aún no tiene carreras.' }"></ng-container>
+    }
+    <ng-container *ngTemplateOutlet="panelTpl; context: {
+      tipo: 'grado', padre: padreGrados, items: padreGrados?.hijos ?? [], sel: selGrado,
+      vacio: padreGrados ? 'Sin grados todavía.' : (nivelSel?.usaCarreras ? 'Seleccione una carrera.' : 'Seleccione un nivel.') }"></ng-container>
+    <ng-container *ngTemplateOutlet="panelTpl; context: {
+      tipo: 'seccion', padre: gradoSel, items: gradoSel?.hijos ?? [], sel: null,
+      vacio: gradoSel ? 'Sin secciones todavía.' : 'Seleccione un grado.' }"></ng-container>
+  </div>
+}
+
+<!-- ─── Nodo del árbol (recursivo) ─── -->
+<ng-template #nodoTpl let-n>
+  <div class="ea-branch">
+    <div class="ea-node" [class]="'t-' + n.tipo" [class.inactivo]="!n.activo">
+      <div class="ea-node-head">
+        <div class="ea-node-title">
+          @if (n.tipo !== 'grado') {
+            <span class="ea-type">{{ etq(n.tipo).s }}@if (n.usaCarreras) { · por carreras }</span>
+          }
+          <span class="ea-name" [title]="ruta(n)">{{ n.nombre }}</span>
+          @if (!n.activo) { <span class="ea-inactivo">{{ etq(n.tipo).fem ? 'Inactiva' : 'Inactivo' }}</span> }
+        </div>
+        @if (n.tipo === 'grado') {
+          <div class="ea-secciones">
+            @for (s of visibles(n.hijos); track s.key) {
+              <button type="button" class="ea-chip" [class.inactivo]="!s.activo"
+                [title]="(s.activo ? 'Sección ' : 'Sección inactiva ') + s.nombre + (puedeE ? ' — clic para editar' : '')"
+                (click)="puedeE ? editar(s) : (bitacoraNodo = s)">{{ s.nombre }}</button>
+            } @empty {
+              <span class="muted ea-sin">Sin secciones</span>
+            }
+            @if (puedeA) {
+              <button type="button" class="ea-chip add" title="Agregar sección" (click)="nuevo('seccion', n)">+</button>
+            }
+          </div>
+        }
+        <app-row-menu [actions]="acciones(n)"></app-row-menu>
+      </div>
+
+      @if (n.tipo !== 'grado') {
+        <div class="ea-meta">
+          <span>{{ resumenHijos(n) }}</span>
+          @if (n.hijos.length) {
+            <button type="button" class="ea-toggle" (click)="toggleExpandir(n)" [title]="expandido(n) ? 'Contraer' : 'Expandir'">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" [class.rot]="!expandido(n)"><polyline points="15 6 9 12 15 18"/></svg>
+            </button>
+          }
+        </div>
+        @if (puedeA && tipoHijo(n)) {
+          <button type="button" class="ea-add ea-add-child" [title]="'Agregar ' + ETQ[tipoHijo(n)!].s.toLowerCase() + ' en ' + n.nombre" (click)="nuevo(tipoHijo(n)!, n)">+</button>
+        }
+      }
+
+      @if (puedeA) {
+        <button type="button" class="ea-add ea-add-sibling" [title]="'Agregar ' + etq(n.tipo).s.toLowerCase() + ' al mismo nivel'" (click)="nuevo(n.tipo, n.padre)">+</button>
+      }
+    </div>
+
+    @if (n.tipo !== 'grado' && visibles(n.hijos).length && expandido(n)) {
+      <div class="ea-children">
+        @for (h of visibles(n.hijos); track h.key) {
+          <ng-container *ngTemplateOutlet="nodoTpl; context: { $implicit: h }"></ng-container>
+        }
+      </div>
+    }
+  </div>
+</ng-template>
+
+<!-- ─── Panel maestro-detalle ─── -->
+<ng-template #panelTpl let-tipo="tipo" let-padre="padre" let-items="items" let-sel="sel" let-vacio="vacio">
+  <section class="col-card md-panel" [class.bloqueado]="tipo !== 'nivel' && !padre">
+    <header class="md-head">
+      <div>
+        <div class="md-title">{{ etq(tipo).p }}</div>
+        @if (padre) { <div class="md-sub">{{ padre.nombre }}</div> }
+      </div>
+      <span class="md-count">{{ visibles(items).length }}</span>
+      @if (puedeA && (tipo === 'nivel' || padre)) {
+        <button type="button" class="btn-col outline sm" (click)="nuevo(tipo, padre)" [title]="'Nuevo con más opciones'">+ Nuevo</button>
+      }
+    </header>
+
+    <div class="md-list">
+      @for (it of visibles(items); track it.key) {
+        <div class="md-row" [class.sel]="sel === it.key" [class.inactivo]="!it.activo" [class.clickable]="tipo !== 'seccion'"
+             (click)="tipo !== 'seccion' && seleccionar(it)">
+          <div class="md-row-main">
+            <span class="md-name">{{ it.nombre }}</span>
+            @if (tipo === 'nivel' && it.usaCarreras) { <span class="chip accent">Por carreras</span> }
+            @if (tipo !== 'seccion') { <span class="md-row-sub">{{ resumenHijos(it) }}</span> }
+          </div>
+          @if (!it.activo) { <span class="badge danger">Inactivo</span> }
+          <span (click)="$event.stopPropagation()"><app-row-menu [actions]="acciones(it)"></app-row-menu></span>
+          @if (tipo !== 'seccion') {
+            <svg class="md-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 6 15 12 9 18"/></svg>
+          }
+        </div>
+      } @empty {
+        <div class="md-empty">{{ vacio }}</div>
+      }
+    </div>
+
+    @if (puedeA && (tipo === 'nivel' || padre)) {
+      <form class="md-quick" (ngSubmit)="agregarRapido(tipo, padre)">
+        <div class="md-quick-row">
+          <input class="col-input" [name]="'rapido-' + tipo" [(ngModel)]="rapido[tipo]"
+                 [placeholder]="tipo === 'seccion' ? 'Ej. A, B, C' : tipo === 'grado' ? 'Ej. Primero, Segundo' : 'Nombre (varios separados por coma)'"
+                 [disabled]="guardandoRapido === tipo" autocomplete="off"/>
+          <button type="submit" class="btn-col primary sm" [disabled]="guardandoRapido === tipo || !rapido[tipo].trim()">
+            @if (guardandoRapido === tipo) { <span class="spinner"></span> } Agregar
+          </button>
+        </div>
+        @if (presets(tipo); as presets) {
+          <div class="md-presets">
+            @for (p of presets; track p.label) {
+              <button type="button" class="preset" (click)="aplicarPresetRapido(tipo, p.valores)">{{ p.label }}</button>
+            }
+          </div>
+        }
+      </form>
+    }
+  </section>
+</ng-template>
+
+<!-- ─── Modal alta / edición ─── -->
+@if (form) {
+  <div class="modal-overlay">
+    <div class="modal-box" style="width:520px" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="form = null">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">
+          {{ form.modo === 'nuevo' ? (ETQ[form.tipo].fem ? 'Nueva' : 'Nuevo') : 'Editar' }} {{ ETQ[form.tipo].s.toLowerCase() }}
+        </div>
+        @if (form.padre) { <div class="modal-sub">En: {{ ruta(form.padre) }}</div> }
+      </div>
+      <form class="modal-form" (ngSubmit)="guardar()">
+        <div class="field">
+          <label class="col-label">
+            {{ form.modo === 'nuevo' ? 'Nombre(s)' : 'Nombre' }} <span class="req">*</span>
+          </label>
+          @if (form.modo === 'nuevo') {
+            <textarea class="col-input" name="nombres" rows="2" [(ngModel)]="form.nombres" autofocus
+              [placeholder]="form.tipo === 'seccion' ? 'Ej. A, B, C' : form.tipo === 'grado' ? 'Ej. Primero, Segundo, Tercero' : form.tipo === 'carrera' ? 'Ej. Perito en Computación' : 'Ej. Primaria'"></textarea>
+            <span class="field-hint">Puede crear varios a la vez separándolos por coma o en líneas distintas.
+              @if (nombresForm.length > 1) { <b>Se crearán {{ nombresForm.length }}.</b> }
+            </span>
+            @if (PRESETS[form.tipo]; as presets) {
+              <div class="md-presets">
+                @for (p of presets; track p.label) {
+                  <button type="button" class="preset" (click)="aplicarPreset(p.valores)">{{ p.label }}</button>
+                }
+              </div>
+            }
+          } @else {
+            <input class="col-input" name="nombre" [(ngModel)]="form.nombres" maxlength="120" autofocus/>
+          }
+        </div>
+
+        @if (form.tipo !== 'seccion') {
+          <div class="field" style="max-width:180px">
+            <label class="col-label">Orden</label>
+            <input class="col-input" type="number" min="0" name="orden" [(ngModel)]="form.orden" [placeholder]="form.modo === 'nuevo' ? 'Al final' : ''"/>
+          </div>
+        }
+
+        @if (form.tipo === 'nivel') {
+          <label class="switch-wrap">
+            <input type="checkbox" name="usa_carreras" [checked]="form.usa_carreras === 1" (change)="form.usa_carreras = $any($event.target).checked ? 1 : 0"/>
+            <span class="switch-slider"></span>
+            <span class="switch-label">Organizado por carreras
+              <span class="switch-desc">Ej. Diversificado: cada carrera (Perito en Computación, Dibujo de Construcción…) tiene sus propios grados y secciones</span>
+            </span>
+          </label>
+        }
+
+        <label class="switch-wrap" [class.disabled]="!!formAncestro">
+          <input type="checkbox" name="activo" [checked]="form.activo === 1" [disabled]="!!formAncestro"
+                 (change)="form.activo = $any($event.target).checked ? 1 : 0"/>
+          <span class="switch-slider"></span>
+          <span class="switch-label">Activo
+            @if (formAncestro; as anc) {
+              <span class="switch-desc">{{ etq(anc.tipo).s }} "{{ anc.nombre }}" está {{ etq(anc.tipo).fem ? 'inactiva' : 'inactivo' }}; actívelo primero</span>
+            } @else if (form.modo === 'editar' && form.nodo && form.nodo.hijos.length) {
+              <span class="switch-desc">Al cambiarlo se {{ form.activo ? 'activa' : 'inactiva' }} también todo lo que depende de este registro</span>
+            }
+          </span>
+        </label>
+
+        @if (error) { <div class="alert-error">{{ error }}</div> }
+        <div class="modal-actions">
+          @if (form.modo === 'editar' && form.nodo) {
+            <button type="button" class="btn-col ghost sm ea-left" (click)="bitacoraNodo = form.nodo">Bitácora</button>
+            @if (puedeD) {
+              <button type="button" class="btn-col ghost sm ea-danger" [disabled]="form.nodo.hijos.length > 0"
+                [title]="form.nodo.hijos.length ? 'Tiene registros dependientes' : 'Eliminar'" (click)="eliminar(form.nodo)">Eliminar</button>
+            }
+          }
+          <button type="button" class="btn-col ghost" (click)="form = null">Cancelar</button>
+          <button type="submit" class="btn-col primary" [disabled]="saving">
+            @if (saving) { <span class="spinner"></span> } Guardar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+@if (bitacoraNodo) {
+  <div class="modal-overlay" style="z-index: 1100" (click)="bitacoraNodo = null">
+    <div class="modal-box modal-lg" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="bitacoraNodo = null">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">Bitácora — {{ ETQ[bitacoraNodo.tipo].s }} {{ bitacoraNodo.nombre }}</div>
+        <div class="modal-sub">{{ ruta(bitacoraNodo) }}</div>
+      </div>
+      <app-bitacora-tab [tabla]="ETQ[bitacoraNodo.tipo].tabla" [idregistro]="bitacoraNodo.id"></app-bitacora-tab>
+    </div>
+  </div>
+}

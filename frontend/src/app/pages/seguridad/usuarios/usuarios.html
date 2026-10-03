@@ -1,0 +1,147 @@
+<div class="page-header">
+  <div>
+    <h1>
+      <span class="h1-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20v-1a8 8 0 0116 0v1" stroke-linecap="round"/></svg>
+      </span>
+      Usuarios del sistema
+    </h1>
+    <p class="page-subtitle">Cuentas de acceso del personal administrativo</p>
+  </div>
+  @if (permisos.tiene('usuarios', 'A')) {
+    <button class="btn-col primary" (click)="openNew()">+ Nuevo usuario</button>
+  }
+</div>
+
+<div class="col-card list-toolbar">
+  <input class="col-input" type="text" placeholder="Buscar por código, nombre o correo..." [(ngModel)]="search" (ngModelChange)="onSearch()"/>
+  <span class="toolbar-count">{{ total }} usuario{{ total === 1 ? '' : 's' }}</span>
+</div>
+
+<div class="col-card" style="padding:0; overflow:hidden;">
+  <div class="table-scroll-wrap">
+    <table class="col-table">
+      <thead>
+        <tr>
+          <th class="row-menu-col"></th>
+          <th appThSort field="idusuarios" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">ID</th>
+          <th appThSort field="codigo" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Código</th>
+          <th appThSort field="nombre_completo" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Nombre</th>
+          <th appThSort field="email" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Correo</th>
+          <th>Grupos</th>
+          <th appThSort field="primer" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">1er acceso</th>
+          <th appThSort field="activo" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (loading) {
+          <tr><td colspan="8"><div class="loading-state"><span class="spinner dark"></span> Cargando...</div></td></tr>
+        } @else {
+          @for (u of rows; track u.idusuarios) {
+            <tr>
+              <td class="row-menu-col"><app-row-menu [actions]="getRowActions(u)"></app-row-menu></td>
+              <td class="id-col">{{ u.idusuarios }}</td>
+              <td><strong>{{ u.codigo }}</strong></td>
+              <td>{{ u.nombre_completo }}</td>
+              <td>{{ u.email || '—' }}</td>
+              <td>
+                @for (g of u.grupos; track g.GroupID) { <span class="chip" style="margin-right:4px">{{ g.Label }}</span> }
+                @if (!u.grupos?.length) { <span class="muted">Sin grupo</span> }
+              </td>
+              <td>
+                @if (u.primer) { <span class="badge warning">Pendiente</span> } @else { <span class="badge success">OK</span> }
+              </td>
+              <td>
+                @if (u.activo) { <span class="badge success">Activo</span> } @else { <span class="badge danger">Inactivo</span> }
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="8"><div class="empty-state"><p>No hay usuarios.</p></div></td></tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+  <app-paginator [total]="total" [page]="page" [pageSize]="pageSize"
+    (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)"></app-paginator>
+</div>
+
+@if (showModal) {
+  <div class="modal-overlay">
+    <div class="modal-box" style="width:560px" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="showModal = false">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">{{ isEdit ? 'Editar usuario' : 'Nuevo usuario' }}</div>
+      </div>
+      <form class="modal-form" (ngSubmit)="save()">
+        <div class="field-row">
+          <div class="field">
+            <label class="col-label">Código <span class="req">*</span></label>
+            <input class="col-input" name="codigo" [(ngModel)]="form.codigo" placeholder="Ej. jperez" [disabled]="isEdit"/>
+          </div>
+          <div class="field">
+            <label class="col-label">Nombre completo <span class="req">*</span></label>
+            <input class="col-input" name="nombre_completo" [(ngModel)]="form.nombre_completo" placeholder="Nombre y apellidos"/>
+          </div>
+        </div>
+        <div class="field">
+          <label class="col-label">Correo electrónico</label>
+          <input class="col-input" type="email" name="email" [(ngModel)]="form.email" placeholder="correo@colegio.edu.gt"/>
+          <span class="field-hint">Necesario para restablecer la contraseña por correo.</span>
+        </div>
+        <div class="field">
+          <label class="col-label">Contraseña @if (!isEdit) { <span class="req">*</span> }</label>
+          <input class="col-input" type="password" name="password" [(ngModel)]="form.password" autocomplete="new-password"
+                 [placeholder]="isEdit ? 'Dejar vacío para no cambiar' : 'Mínimo 4 caracteres'"/>
+        </div>
+
+        @if (auth.isSuperAdmin() && grupos.length) {
+          <div class="field">
+            <label class="col-label">Grupos de seguridad</label>
+            <div class="grupos-grid">
+              @for (g of grupos; track g.GroupID) {
+                <label class="grupo-check">
+                  <input type="checkbox" [checked]="form.grupos.includes(g.GroupID)" (change)="toggleGrupo(g.GroupID, $any($event.target).checked)"/>
+                  {{ g.Label }}
+                </label>
+              }
+            </div>
+          </div>
+        }
+
+        <label class="switch-wrap">
+          <input type="checkbox" name="activo" [checked]="form.activo === 1" (change)="form.activo = $any($event.target).checked ? 1 : 0"/>
+          <span class="switch-slider"></span>
+          <span class="switch-label">Usuario activo</span>
+        </label>
+        <label class="switch-wrap">
+          <input type="checkbox" name="primer" [checked]="form.primer === 1" (change)="form.primer = $any($event.target).checked ? 1 : 0"/>
+          <span class="switch-slider"></span>
+          <span class="switch-label">Cambio de contraseña obligatorio <span class="switch-desc">Al iniciar sesión deberá definir una nueva contraseña</span></span>
+        </label>
+
+        @if (error) { <div class="alert-error">{{ error }}</div> }
+        <div class="modal-actions">
+          <button type="button" class="btn-col ghost" (click)="showModal = false">Cancelar</button>
+          <button type="submit" class="btn-col primary" [disabled]="saving">
+            @if (saving) { <span class="spinner"></span> } {{ isEdit ? 'Guardar cambios' : 'Crear usuario' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+@if (bitacoraItem) {
+  <div class="modal-overlay" (click)="bitacoraItem = null">
+    <div class="modal-box modal-lg" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="bitacoraItem = null">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar"><div class="modal-title">Bitácora — {{ bitacoraItem.codigo }}</div></div>
+      <app-bitacora-tab tabla="usuarios" [idregistro]="bitacoraItem.idusuarios"></app-bitacora-tab>
+    </div>
+  </div>
+}

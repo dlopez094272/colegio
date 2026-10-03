@@ -1,0 +1,158 @@
+.fc {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 180px;
+}
+
+.fc-frame {
+  position: relative;
+  width: 150px;
+  height: 200px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--clr-surface-2);
+  border: 2px solid var(--clr-border);
+
+  &.vacia { border-style: dashed; }
+
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+}
+
+.fc-placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--clr-text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .5px;
+}
+
+.fc-busy {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fc-tag {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--clr-accent);
+  color: var(--clr-ink);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.fc-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: 150px;
+
+  .btn-col { justify-content: center; }
+}
+
+.fc-link {
+  background: none;
+  border: none;
+  color: var(--clr-danger);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  &:hover { text-decoration: underline; }
+}
+
+.fc-error { font-size: 12px; color: var(--clr-danger); text-align: center; }
+
+/* ── Modal de cámara ── */
+.fc-cam-overlay { z-index: 1500; }
+
+.fc-cam {
+  width: min(720px, 96vw);
+  background: #1C1B19;
+  border: 1px solid rgba(212,178,76,.3);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 16px 50px rgba(0,0,0,.5);
+}
+
+.fc-cam-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 2px solid #D4B24C;
+  color: #fff;
+  font-family: var(--font-ui);
+  font-weight: 700;
+}
+
+.fc-cam-close {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.7);
+  cursor: pointer;
+  &:hover { color: #fff; }
+}
+
+.fc-cam-view {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: #000;
+
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1); /* vista espejo, más natural para la cámara frontal */
+  }
+}
+
+/* Marco guía 3:4 (lo que quedará en la foto) */
+.fc-guia {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  aspect-ratio: 3 / 4;
+  border: 2px dashed rgba(212,178,76,.85);
+  box-shadow: 0 0 0 100vmax rgba(0,0,0,.45);
+  pointer-events: none;
+}
+
+.fc-cam-msg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  color: rgba(255,255,255,.8);
+  font-size: 14px;
+}
+
+.fc-cam-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  flex-wrap: wrap;
+
+  .fc-hint { margin-right: auto; font-size: 12px; color: rgba(255,255,255,.5); }
+  .fc-light { color: rgba(255,255,255,.8); border-color: rgba(255,255,255,.2); &:hover { background: rgba(255,255,255,.08); color: #fff; } }
+}

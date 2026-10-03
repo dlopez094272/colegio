@@ -1,0 +1,99 @@
+<div class="page-header">
+  <h1>Usuarios y grupos</h1>
+  <div class="header-actions">
+    @if (hasPending) {
+      <button class="btn-col outline sm" (click)="discardChanges()">✕ Descartar</button>
+      <button class="btn-col primary sm" [disabled]="saving" (click)="saveAll()">
+        @if (saving) { <span class="spinner-sm"></span> Guardando... }
+        @else { ✔ Guardar ({{ pendingCount }}) }
+      </button>
+    } @else {
+      <button class="btn-col outline sm" (click)="load()">↺ Recargar</button>
+    }
+  </div>
+</div>
+
+<!-- Mensajes -->
+@if (apiError) {
+  <div class="msg-box error">
+    <strong>⚠ No se pudo cargar la información:</strong><br>
+    {{ apiError }}
+  </div>
+}
+@if (saveError) {
+  <div class="msg-box error">{{ saveError }}</div>
+}
+@if (saveOk) {
+  <div class="msg-box success">✔ Cambios guardados correctamente.</div>
+}
+@if (hasPending && !saveError) {
+  <div class="msg-box pending">
+    {{ pendingCount }} cambio{{ pendingCount !== 1 ? 's' : '' }} pendiente{{ pendingCount !== 1 ? 's' : '' }} sin guardar.
+  </div>
+}
+
+<!-- Loading -->
+@if (loading) {
+  <div class="loading-row"><span class="spinner dark"></span> Cargando usuarios y grupos...</div>
+}
+
+@if (!loading && !apiError) {
+  <div class="col-card">
+    <div class="toolbar">
+      <input class="col-input search-input" type="text" [(ngModel)]="search"
+             (ngModelChange)="onSearch()" placeholder="Buscar por usuario o nombre..."/>
+      @if (groups.length === 0) {
+        <span class="no-groups-hint">No hay grupos creados. Ve a <strong>Permisos</strong> y usa "Añadir grupo".</span>
+      }
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-scroll-wrap">
+      <table class="col-table seg-table">
+        <thead>
+          <tr>
+            <th appThSort field="codigo" [sortField]="sortField" [sortDir]="sortDirLower" (sortChange)="onSort($event)">Usuario</th>
+            <th appThSort field="nombre_completo" [sortField]="sortField" [sortDir]="sortDirLower" (sortChange)="onSort($event)">Nombre completo</th>
+            <th appThSort field="email" [sortField]="sortField" [sortDir]="sortDirLower" (sortChange)="onSort($event)">Correo electrónico</th>
+            @for (g of groups; track g.GroupID) {
+              <th class="center-th">
+                {{ g.Label }}
+                @if (isSuperAdminGroup(g)) {
+                  <span class="sa-badge">SA</span>
+                }
+              </th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (u of filtered; track u.idusuarios) {
+            <tr>
+              <td><strong class="codigo-txt">{{ u.codigo }}</strong></td>
+              <td>{{ u.nombre_completo }}</td>
+              <td class="email-txt">{{ u.email }}</td>
+              @for (g of u.groups; track g.GroupID) {
+                <td class="center-th" [class.pending-cell]="isPending(u, g)">
+                  <label class="cb-wrap">
+                    <input type="checkbox" [checked]="g.member" (change)="toggleMember(u, g)"/>
+                    <span class="cb-box" [class.cb-sa]="isSuperAdminGroup(g)"></span>
+                  </label>
+                </td>
+              }
+            </tr>
+          }
+          @if (filtered.length === 0) {
+            <tr>
+              <td [attr.colspan]="3 + groups.length" class="empty-cell">
+                Sin resultados
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      </div>
+    </div>
+    <app-paginator [total]="total" [page]="page" [pageSize]="pageSize"
+      (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)">
+    </app-paginator>
+  </div>
+}

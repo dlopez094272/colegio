@@ -1,0 +1,94 @@
+<div class="page-header">
+  <div>
+    <h1>
+      <span class="h1-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" stroke-linejoin="round"/><line x1="7" y1="7" x2="7.01" y2="7" stroke-linecap="round"/></svg>
+      </span>
+      Estados civiles
+    </h1>
+    <p class="page-subtitle">Catálogo utilizado en la ficha de padres de familia y del personal docente</p>
+  </div>
+  @if (permisos.tiene('estados_civiles', 'A')) {
+    <button class="btn-col primary" (click)="openNew()">+ Nuevo estado civil</button>
+  }
+</div>
+
+<div class="col-card" style="padding:0; overflow:hidden; max-width:760px;">
+  <table class="col-table">
+    <thead>
+      <tr>
+        <th class="row-menu-col"></th>
+        <th>ID</th>
+        <th>Estado civil</th>
+        <th>Padres registrados</th>
+        <th>Docentes</th>
+        <th>Estado</th>
+      </tr>
+    </thead>
+    <tbody>
+      @if (loading) {
+        <tr><td colspan="6"><div class="loading-state"><span class="spinner dark"></span> Cargando...</div></td></tr>
+      } @else {
+        @for (ec of items; track ec.idestados_civiles) {
+          <tr>
+            <td class="row-menu-col"><app-row-menu [actions]="getRowActions(ec)"></app-row-menu></td>
+            <td class="id-col">{{ ec.idestados_civiles }}</td>
+            <td><strong>{{ ec.estado_civil }}</strong></td>
+            <td>{{ ec.total_padres || 0 }}</td>
+            <td>{{ ec.total_docentes || 0 }}</td>
+            <td>
+              @if (ec.activo) { <span class="badge success">Activo</span> } @else { <span class="badge danger">Inactivo</span> }
+            </td>
+          </tr>
+        } @empty {
+          <tr><td colspan="6"><div class="empty-state"><p>No hay estados civiles registrados.</p></div></td></tr>
+        }
+      }
+    </tbody>
+  </table>
+</div>
+
+@if (showModal) {
+  <div class="modal-overlay">
+    <div class="modal-box" style="width:440px" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="showModal = false">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">{{ isEdit ? 'Editar' : 'Nuevo' }} estado civil</div>
+      </div>
+      <form class="modal-form" (ngSubmit)="save()">
+        <div class="field">
+          <label class="col-label">Nombre <span class="req">*</span></label>
+          <input class="col-input" name="estado_civil" [(ngModel)]="form.estado_civil" maxlength="60" placeholder="Ej. Casado(a)" autofocus/>
+        </div>
+        <label class="switch-wrap">
+          <input type="checkbox" name="activo" [checked]="form.activo === 1" (change)="form.activo = $any($event.target).checked ? 1 : 0"/>
+          <span class="switch-slider"></span>
+          <span class="switch-label">Activo <span class="switch-desc">Solo los activos se ofrecen en los formularios de padres y docentes</span></span>
+        </label>
+        @if (error) { <div class="alert-error">{{ error }}</div> }
+        <div class="modal-actions">
+          <button type="button" class="btn-col ghost" (click)="showModal = false">Cancelar</button>
+          <button type="submit" class="btn-col primary" [disabled]="saving">
+            @if (saving) { <span class="spinner"></span> } Guardar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+@if (bitacoraItem) {
+  <div class="modal-overlay" (click)="bitacoraItem = null">
+    <div class="modal-box modal-lg" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="bitacoraItem = null">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">Bitácora — {{ bitacoraItem.estado_civil }}</div>
+      </div>
+      <app-bitacora-tab tabla="estados_civiles" [idregistro]="bitacoraItem.idestados_civiles"></app-bitacora-tab>
+    </div>
+  </div>
+}

@@ -1,0 +1,337 @@
+<!-- ── Encabezado ──────────────────────────────────────────────────── -->
+<div class="page-header">
+  <div>
+    <h1>
+      <span class="h1-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l3-2 2 2 2-2 2 2 2-2 3 2V2l-3 2-2-2-2 2-2-2-2 2-3-2z"/><path d="M9 9h6M9 13h6"/></svg>
+      </span>
+      Pagos
+    </h1>
+    <p class="page-subtitle">Cobro de cuotas y recibos de pago</p>
+  </div>
+  @if (puedeA) {
+    <button class="btn-col primary" (click)="nuevoCobro()">+ Nuevo cobro</button>
+  }
+</div>
+
+<!-- ── Filtros ─────────────────────────────────────────────────────── -->
+<div class="col-card list-toolbar">
+  <input class="col-input" type="text" [(ngModel)]="search" (ngModelChange)="onSearch()"
+         placeholder="Buscar por recibo, pagador, NIT, estudiante o referencia..."/>
+  <label class="pg-fecha"><span>Del</span><input class="col-input" type="date" [(ngModel)]="desde" (ngModelChange)="reload()"/></label>
+  <label class="pg-fecha"><span>al</span><input class="col-input" type="date" [(ngModel)]="hasta" (ngModelChange)="reload()"/></label>
+  <select class="col-input pg-forma" [(ngModel)]="forma" (ngModelChange)="reload()">
+    <option value="">Toda forma de pago</option>
+    @for (f of formas; track f) { <option [value]="f">{{ f }}</option> }
+  </select>
+  <div class="seg-filter">
+    <button [class.active]="estado === 'Activo'" (click)="estado = 'Activo'; reload()">Vigentes</button>
+    <button [class.active]="estado === 'Anulado'" (click)="estado = 'Anulado'; reload()">Anulados</button>
+    <button [class.active]="estado === ''" (click)="estado = ''; reload()">Todos</button>
+  </div>
+  <span class="toolbar-count">{{ total }} recibo{{ total === 1 ? '' : 's' }} · <strong>{{ q(totalCobrado) }}</strong> cobrado</span>
+</div>
+
+<!-- ── Tabla ───────────────────────────────────────────────────────── -->
+<div class="col-card table-card">
+  <div class="table-scroll-wrap">
+    <table class="col-table">
+      <thead>
+        <tr>
+          <th class="row-menu-col"></th>
+          <th appThSort field="numero" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Recibo</th>
+          <th appThSort field="fecha_pago" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Fecha</th>
+          <th appThSort field="pagador" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Pagador</th>
+          <th>Estudiante(s)</th>
+          <th appThSort field="forma_pago" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Forma de pago</th>
+          <th appThSort field="total" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)" class="num">Total</th>
+          <th appThSort field="estado" [sortField]="sortField" [sortDir]="sortDir" (sortChange)="onSort($event)">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (loading) {
+          <tr><td colspan="8"><div class="loading-state"><span class="spinner dark"></span> Cargando...</div></td></tr>
+        } @else {
+          @for (p of rows; track p.idpagos) {
+            <tr (dblclick)="abrirDetalle(p, 'detalle')" [class.pg-anulado]="p.estado === 'Anulado'">
+              <td class="row-menu-col" (click)="$event.stopPropagation()"><app-row-menu [actions]="getRowActions(p)"></app-row-menu></td>
+              <td class="nowrap"><button type="button" class="pg-num" (click)="verRecibo(p.idpagos)" title="Ver recibo">{{ numero(p.numero) }}</button></td>
+              <td class="nowrap">{{ fecha(p.fecha_pago) }}</td>
+              <td>
+                {{ p.pagador_nombre }}
+                <div class="sub-txt">NIT {{ p.pagador_nit }}</div>
+              </td>
+              <td>
+                {{ p.estudiantes }}
+                <div class="sub-txt">{{ p.lineas }} cuota{{ p.lineas === 1 ? '' : 's' }}</div>
+              </td>
+              <td>
+                {{ p.forma_pago }}
+                @if (p.referencia) { <div class="sub-txt">Ref. {{ p.referencia }}</div> }
+              </td>
+              <td class="num nowrap">
+                <strong>{{ q(p.total) }}</strong>
+                @if (p.mora) { <div class="sub-txt">incl. {{ q(p.mora) }} mora</div> }
+              </td>
+              <td>
+                @if (p.estado === 'Activo') { <span class="badge success">Vigente</span> }
+                @else { <span class="badge danger" [title]="p.motivo_anulacion || ''">Anulado</span> }
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="8">
+              <div class="empty-state">
+                <span class="empty-icon">🧾</span>
+                <p>{{ search || forma ? 'Sin resultados para los filtros aplicados.' : 'No hay recibos en el período seleccionado.' }}</p>
+              </div>
+            </td></tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+  <app-paginator [total]="total" [page]="page" [pageSize]="pageSize"
+    (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)">
+  </app-paginator>
+</div>
+
+<!-- ── Modal: nuevo cobro ──────────────────────────────────────────── -->
+@if (cobro; as c) {
+  <div class="modal-overlay">
+    <div class="modal-box modal-xl pg-modal" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="cerrarCobro()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">Nuevo cobro</div>
+        <div class="modal-sub">Busque al padre de familia (cobra a todos sus hijos) o al estudiante</div>
+      </div>
+
+      <form class="modal-form" (ngSubmit)="cobrar()">
+        <!-- Quién -->
+        @if (c.seleccion; as s) {
+          <div class="pg-sel">
+            <span class="pg-tipo" [class.padre]="s.tipo === 'padre'">{{ s.tipo === 'padre' ? 'Padre / encargado' : 'Estudiante' }}</span>
+            <strong>{{ s.nombre || 'Cargando…' }}</strong>
+            <label class="pg-fecha-pago">
+              <span>Fecha de pago</span>
+              <input class="col-input" type="date" name="fecha_pago" [max]="hoy" [(ngModel)]="c.fecha_pago" (change)="cargarPendientes()"/>
+            </label>
+            <button type="button" class="btn-col ghost sm" (click)="cambiarSeleccion()">Cambiar</button>
+          </div>
+        } @else {
+          <div class="pg-buscar">
+            <input class="col-input" type="text" name="busqueda" [(ngModel)]="busqueda" (ngModelChange)="onBuscar()"
+                   placeholder="Nombre, apellido, DPI o NIT del padre · nombre, CUI o código de inscripción del estudiante" autocomplete="off" autofocus/>
+            @if (buscando) { <span class="spinner dark pg-buscar-spin"></span> }
+            @if (resultados.length) {
+              <div class="pg-resultados">
+                @for (r of resultados; track r.tipo + r.id) {
+                  <button type="button" class="pg-res" (click)="elegir(r)">
+                    <span class="pg-tipo" [class.padre]="r.tipo === 'padre'">{{ r.tipo === 'padre' ? 'Padre' : 'Estudiante' }}</span>
+                    <span class="pg-res-info">
+                      <strong>{{ r.nombre }}</strong>
+                      <span class="sub-txt">{{ r.tipo === 'padre' ? 'Hijos: ' : '' }}{{ r.detalle }}</span>
+                    </span>
+                    <span class="pg-res-pend" [class.cero]="!r.pendientes">{{ r.pendientes }} pendiente{{ r.pendientes === 1 ? '' : 's' }}</span>
+                  </button>
+                }
+              </div>
+            } @else if (busqueda.trim().length >= 2 && !buscando) {
+              <span class="field-hint">Sin resultados. Solo aparecen estudiantes con inscripción activa y sus padres vinculados.</span>
+            }
+          </div>
+        }
+
+        <!-- Cuotas pendientes -->
+        @if (c.seleccion) {
+          @if (c.cargando && !c.pendientes) {
+            <div class="loading-state"><span class="spinner dark"></span> Cargando cuotas pendientes...</div>
+          } @else if (c.pendientes && !c.pendientes.cargos.length) {
+            <div class="pg-solvente">✓ No tiene cuotas pendientes de pago.</div>
+          } @else if (c.pendientes) {
+            <div class="pg-bar">
+              <span class="col-label">Cuotas pendientes</span>
+              <div class="pg-rapido">
+                <button type="button" (click)="marcar('vencidas')">Vencidas</button>
+                <button type="button" (click)="marcar('mes')">Hasta este mes</button>
+                <button type="button" (click)="marcar('todas')">Todas</button>
+                <button type="button" (click)="marcar('ninguna')">Ninguna</button>
+              </div>
+            </div>
+            <div class="table-scroll-wrap pg-tabla-wrap" [class.cargando]="c.cargando">
+              <table class="col-table pg-tabla">
+                <thead>
+                  <tr>
+                    <th class="chk"></th>
+                    <th>Cuota</th>
+                    <th>Vence</th>
+                    <th class="num">Monto</th>
+                    <th class="num">Mora</th>
+                    <th class="num">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (g of grupos; track g.idinscripciones) {
+                    <tr class="pg-grupo">
+                      <td class="chk"><input type="checkbox" [checked]="grupoCompleto(g)" (change)="toggleGrupo(g)"/></td>
+                      <td colspan="5"><strong>{{ g.titulo }}</strong> <span class="sub-txt">{{ g.sub }}</span></td>
+                    </tr>
+                    @for (x of g.cargos; track x.idinscripciones_cargos) {
+                      <tr [class.sel]="c.marcados.has(x.idinscripciones_cargos)" [class.venc]="x.vencido" (click)="toggle(x.idinscripciones_cargos)">
+                        <td class="chk"><input type="checkbox" [checked]="c.marcados.has(x.idinscripciones_cargos)" (click)="$event.stopPropagation()" (change)="toggle(x.idinscripciones_cargos)"/></td>
+                        <td>{{ x.concepto }}</td>
+                        <td class="nowrap">
+                          {{ fecha(x.fecha_vencimiento) }}
+                          @if (x.vencido) { <span class="badge danger pg-venc">Vencida</span> }
+                        </td>
+                        <td class="num nowrap">{{ q(x.monto) }}</td>
+                        <td class="num nowrap" (click)="$event.stopPropagation()">
+                          @if (x.mora) {
+                            <span [class.tachado]="c.exonerar.has(x.idinscripciones_cargos)">{{ q(x.mora) }}</span>
+                            @if (puedeExonerar && c.marcados.has(x.idinscripciones_cargos)) {
+                              <button type="button" class="pg-exo" [class.on]="c.exonerar.has(x.idinscripciones_cargos)" (click)="toggleExonerar(x.idinscripciones_cargos)"
+                                      [title]="c.exonerar.has(x.idinscripciones_cargos) ? 'Cobrar la mora' : 'Exonerar la mora'">
+                                {{ c.exonerar.has(x.idinscripciones_cargos) ? 'Exonerada' : 'Exonerar' }}
+                              </button>
+                            }
+                          }
+                        </td>
+                        <td class="num nowrap"><strong>{{ q(x.monto + moraLinea(x)) }}</strong></td>
+                      </tr>
+                    }
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagador y forma de pago -->
+            <div class="pg-pie">
+              <div class="pg-datos">
+                @if (c.pendientes.pagadores.length > 1) {
+                  <div class="field">
+                    <label class="col-label">Paga</label>
+                    <div class="chips">
+                      @for (p of c.pendientes.pagadores; track p.idpadres) {
+                        <button type="button" class="chip pg-pagador" [class.accent]="c.idpadres === p.idpadres" (click)="elegirPagador(p)">
+                          {{ p.nombre }}{{ p.parentesco ? ' (' + p.parentesco + ')' : '' }}
+                        </button>
+                      }
+                      <button type="button" class="chip pg-pagador" [class.accent]="c.idpadres === null" (click)="elegirPagador(null)">Otra persona</button>
+                    </div>
+                  </div>
+                }
+                <div class="field-row">
+                  <div class="field">
+                    <label class="col-label">Nombre de quien paga <span class="req">*</span></label>
+                    <input class="col-input" name="pagador_nombre" [(ngModel)]="c.pagador_nombre" maxlength="150"/>
+                  </div>
+                  <div class="field">
+                    <label class="col-label">NIT</label>
+                    <input class="col-input" name="pagador_nit" [(ngModel)]="c.pagador_nit" maxlength="20" placeholder="CF"/>
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label class="col-label">Forma de pago <span class="req">*</span></label>
+                    <select class="col-input" name="forma_pago" [(ngModel)]="c.forma_pago">
+                      @for (f of formas; track f) { <option [value]="f">{{ f }}</option> }
+                    </select>
+                  </div>
+                  @if (pideReferencia) {
+                    <div class="field">
+                      <label class="col-label">{{ etiquetaReferencia }} <span class="req">*</span></label>
+                      <input class="col-input" name="referencia" [(ngModel)]="c.referencia" maxlength="60"/>
+                    </div>
+                  }
+                </div>
+                <div class="field">
+                  <label class="col-label">Observaciones</label>
+                  <input class="col-input" name="observaciones" [(ngModel)]="c.observaciones" maxlength="255" placeholder="Opcional"/>
+                </div>
+              </div>
+
+              <div class="pg-resumen">
+                <div><span>Cuotas</span><strong>{{ resumen.cuotas }}</strong></div>
+                <div><span>Subtotal</span><strong>{{ q(resumen.subtotal) }}</strong></div>
+                <div><span>Mora</span><strong [class.mal]="resumen.mora">{{ q(resumen.mora) }}</strong></div>
+                <div class="pg-total"><span>Total a cobrar</span><strong>{{ q(resumen.total) }}</strong></div>
+              </div>
+            </div>
+          }
+        }
+
+        @if (error) { <div class="alert-error">{{ error }}</div> }
+        <div class="modal-actions">
+          <button type="button" class="btn-col ghost" (click)="cerrarCobro()">Cancelar</button>
+          <button type="submit" class="btn-col primary" [disabled]="saving || !c.marcados.size || c.cargando">
+            @if (saving) { <span class="spinner"></span> }
+            Cobrar {{ resumen.cuotas ? q(resumen.total) : '' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- ── Modal: detalle del recibo ───────────────────────────────────── -->
+@if (detalle; as d) {
+  <div class="modal-overlay" (click)="detalle = null">
+    <div class="modal-box modal-lg" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="detalle = null">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar">
+        <div class="modal-title">Recibo No. {{ numero(d.numero) }}</div>
+        <div class="modal-sub">{{ fecha(d.fecha_pago) }} · {{ d.pagador_nombre }} · {{ q(d.total) }}{{ d.estado === 'Anulado' ? ' · ANULADO' : '' }}</div>
+      </div>
+      <div class="detail-tabs">
+        <button class="detail-tab" [class.active]="detalleTab === 'detalle'" (click)="detalleTab = 'detalle'">Detalle</button>
+        <button class="detail-tab" [class.active]="detalleTab === 'bitacora'" (click)="detalleTab = 'bitacora'">Bitácora</button>
+      </div>
+      <div class="detail-body">
+        @if (detalleTab === 'detalle') {
+          @if (d.estado === 'Anulado') {
+            <div class="alert-error">Anulado el {{ d.fecha_anulacion | date:'dd/MM/yyyy HH:mm' }}: {{ d.motivo_anulacion }}</div>
+          }
+          <div class="ficha-fields pg-ficha">
+            <div class="ficha-field"><span class="ff-label">Pagador</span><span class="ff-value">{{ d.pagador_nombre }}</span></div>
+            <div class="ficha-field"><span class="ff-label">NIT</span><span class="ff-value">{{ d.pagador_nit }}</span></div>
+            <div class="ficha-field"><span class="ff-label">Forma de pago</span><span class="ff-value">{{ d.forma_pago }}{{ d.referencia ? ' · Ref. ' + d.referencia : '' }}</span></div>
+            <div class="ficha-field"><span class="ff-label">Registrado por</span><span class="ff-value">{{ d.usuario_registro || '—' }} · {{ d.fecha_creacion | date:'dd/MM/yyyy HH:mm' }}</span></div>
+            @if (d.observaciones) { <div class="ficha-field full"><span class="ff-label">Observaciones</span><span class="ff-value">{{ d.observaciones }}</span></div> }
+          </div>
+          @if (d.detalle) {
+            <table class="col-table pg-tabla">
+              <thead><tr><th>Estudiante</th><th>Cuota</th><th>Vence</th><th class="num">Monto</th><th class="num">Mora</th><th class="num">Total</th></tr></thead>
+              <tbody>
+                @for (l of d.detalle; track l.idpagos_detalle) {
+                  <tr>
+                    <td>{{ l.estudiante }}<div class="sub-txt">{{ l.grado }} {{ l.seccion || '' }} · {{ l.codigo }}</div></td>
+                    <td>{{ l.concepto }}</td>
+                    <td class="nowrap">{{ fecha(l.fecha_vencimiento) }}</td>
+                    <td class="num nowrap">{{ q(l.monto_pagado) }}</td>
+                    <td class="num nowrap">@if (l.mora_exonerada) { <span class="muted">Exonerada</span> } @else if (l.mora_pagada) { {{ q(l.mora_pagada) }} }</td>
+                    <td class="num nowrap"><strong>{{ q(l.total_linea) }}</strong></td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot><tr><td colspan="5">Total</td><td class="num nowrap">{{ q(d.total) }}</td></tr></tfoot>
+            </table>
+          } @else {
+            <div class="loading-state"><span class="spinner dark"></span> Cargando...</div>
+          }
+        } @else {
+          <app-bitacora-tab tabla="pagos" [idregistro]="d.idpagos"></app-bitacora-tab>
+        }
+      </div>
+      <div class="modal-actions" style="margin-top:16px">
+        @if (puedeD && d.estado === 'Activo') {
+          <button class="btn-col ghost pg-anular" (click)="anular(d)">Anular recibo</button>
+        }
+        <button class="btn-col ghost" (click)="detalle = null">Cerrar</button>
+        <button class="btn-col primary" (click)="verRecibo(d.idpagos)">Imprimir recibo</button>
+      </div>
+    </div>
+  </div>
+}

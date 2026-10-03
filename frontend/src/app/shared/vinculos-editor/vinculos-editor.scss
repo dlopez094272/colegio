@@ -1,0 +1,193 @@
+.ve { display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Acciones ── */
+.ve-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ve-search {
+  position: relative;
+  flex: 1;
+  min-width: 260px;
+
+  .col-input { padding-left: 34px; }
+}
+
+.ve-search-ico {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--clr-text-muted);
+  pointer-events: none;
+}
+
+.ve-spin { position: absolute; right: 12px; top: 50%; margin-top: -9px; }
+
+.ve-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 290px;
+  overflow-y: auto;
+  background: var(--clr-card);
+  border: 1px solid var(--clr-border);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.14);
+}
+
+.ve-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  padding: 9px 14px;
+  border: none;
+  border-bottom: 1px solid var(--clr-surface-2);
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-data);
+
+  &:hover { background: var(--clr-primary-dim); }
+  &:last-child { border-bottom: none; }
+}
+
+.ve-result-name { font-weight: 700; font-size: 13.5px; color: var(--clr-text); }
+.ve-result-det  { font-size: 12px; color: var(--clr-text-muted); }
+.ve-result-vinc { font-size: 11.5px; color: var(--clr-primary); }
+
+.ve-empty {
+  padding: 14px;
+  font-size: 13px;
+  color: var(--clr-text-muted);
+
+  .link {
+    background: none;
+    border: none;
+    color: var(--clr-primary);
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: underline;
+    margin-left: 4px;
+  }
+}
+
+.ve-new-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.ve-none {
+  padding: 14px 16px;
+  border: 1.5px dashed var(--clr-border);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--clr-text-muted);
+  background: var(--clr-surface);
+}
+
+/* ── Lista ── */
+.ve-list { display: flex; flex-direction: column; gap: 8px; }
+
+.ve-item {
+  border: 1px solid var(--clr-border);
+  border-radius: 10px;
+  background: var(--clr-card);
+  transition: border-color .15s, box-shadow .15s;
+
+  &.is-new { border-left: 4px solid var(--clr-accent); }
+  &.open { box-shadow: 0 4px 16px rgba(0,0,0,.07); }
+}
+
+.ve-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.ve-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--clr-ink);
+  color: var(--clr-accent);
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.ve-info {
+  flex: 1;
+  min-width: 0;
+  &.clickable { cursor: pointer; }
+}
+
+.ve-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--clr-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ve-det {
+  font-size: 12px;
+  color: var(--clr-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ve-parentesco {
+  width: 150px;
+  flex-shrink: 0;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.ve-icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid var(--clr-border);
+  background: var(--clr-card);
+  color: var(--clr-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all .15s;
+
+  svg { transition: transform .2s; }
+  &:hover { background: var(--clr-surface-2); color: var(--clr-text); }
+  &.danger:hover { background: var(--clr-danger-bg); color: var(--clr-danger); border-color: rgba(176,58,46,.3); }
+}
+
+.ve-form {
+  padding: 14px 16px 16px;
+  border-top: 1px dashed var(--clr-border);
+  background: var(--clr-surface);
+  border-radius: 0 0 10px 10px;
+
+  .field-hint { margin-top: 10px; }
+}
+
+@media (max-width: 600px) {
+  .ve-row { flex-wrap: wrap; }
+  .ve-parentesco { width: 100%; order: 5; }
+}
