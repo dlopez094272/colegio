@@ -199,7 +199,7 @@ export class DocentesPage implements OnInit, OnDestroy {
           apellido_casada: d.apellido_casada ?? '', fecha_nacimiento: d.fecha_nacimiento ?? '',
           dpi: d.dpi ?? '', direccion: d.direccion ?? '', telefono_casa: d.telefono_casa ?? '',
           telefono_celular: d.telefono_celular ?? '', idestados_civiles: d.idestados_civiles ?? null,
-          nit: d.nit ?? '', pasaporte: d.pasaporte ?? '',
+          nacionalidad: d.nacionalidad ?? '', nit: d.nit ?? '', pasaporte: d.pasaporte ?? '',
         };
         this.tipoPersonal = d.tipo_personal;
         this.email = d.email ?? '';

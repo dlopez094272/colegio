@@ -14,5 +14,6 @@ router.get('/:id',         cp('pagos', 'S'), ctrl.getById);
 router.get('/:id/recibo',  cp('pagos', 'S'), ctrl.reciboPdf);
 router.post('/',           cp('pagos', 'A'), ctrl.create);
 router.post('/:id/anular', cp('pagos', 'D'), ctrl.anular);
+router.post('/:id/notificar', cp('pagos', 'A'), ctrl.notificar);
 
 module.exports = router;

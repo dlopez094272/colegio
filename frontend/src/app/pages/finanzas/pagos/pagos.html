@@ -249,6 +249,17 @@
                   <label class="col-label">Observaciones</label>
                   <input class="col-input" name="observaciones" [(ngModel)]="c.observaciones" maxlength="255" placeholder="Opcional"/>
                 </div>
+                <label class="pg-notificar" [class.off]="!correoHabilitado">
+                  <input type="checkbox" name="notificar" [(ngModel)]="c.notificar" [disabled]="!correoHabilitado"/>
+                  <span>
+                    Enviar comprobante por correo
+                    <span class="sub-txt">
+                      @if (!correoHabilitado) { El correo saliente no está configurado (Configuración › Datos del colegio). }
+                      @else if (correoPagador) { Se enviará el recibo en PDF a {{ correoPagador }}. }
+                      @else { Se enviará a los encargados que firmaron la inscripción, si tienen correo registrado. }
+                    </span>
+                  </span>
+                </label>
               </div>
 
               <div class="pg-resumen">
@@ -330,6 +341,9 @@
           <button class="btn-col ghost pg-anular" (click)="anular(d)">Anular recibo</button>
         }
         <button class="btn-col ghost" (click)="detalle = null">Cerrar</button>
+        @if (puedeA && d.estado === 'Activo' && correoHabilitado) {
+          <button class="btn-col outline" (click)="enviarComprobante(d)">Enviar por correo</button>
+        }
         <button class="btn-col primary" (click)="verRecibo(d.idpagos)">Imprimir recibo</button>
       </div>
     </div>

@@ -1,4 +1,5 @@
 const PagoModel = require('../models/pagoModel');
+const ConfiguracionModel = require('../models/configuracionModel');
 const { tienePermiso } = require('../middleware/checkPermiso');
 const { registrarBitacora } = require('../utils/bitacora');
 const { enTransaccion, fail } = require('../utils/transaccion');
@@ -6,6 +7,7 @@ const { calcularMora, hoy, redondear } = require('../utils/cargos');
 const { siguienteCorrelativo } = require('../utils/correlativo');
 const { enviar } = require('../pdf/base');
 const { generarRecibo, numeroRecibo } = require('../pdf/recibo');
+const { notificarPago, intentar } = require('../utils/notificaciones');
 
 const FORMAS_PAGO = ['Efectivo', 'Depósito', 'Transferencia', 'Tarjeta', 'Cheque'];
 const RE_FECHA = /^\d{4}-\d{2}-\d{2}$/;
@@ -83,7 +85,7 @@ const ctrl = {
 
   // POST /api/pagos
   //   { fecha_pago, idpadres?, pagador_nombre, pagador_nit?, forma_pago, referencia?, observaciones?,
-  //     cargos: [{ idinscripciones_cargos, exonerar_mora? }] }
+  //     cargos: [{ idinscripciones_cargos, exonerar_mora? }], notificar?: true → envía el comprobante por correo }
   // Montos y mora se recalculan aquí: nunca se toman del cliente.
   async create(req, res, next) {
     try {
@@ -150,7 +152,8 @@ const ctrl = {
         },
         req,
       });
-      res.status(201).json({ success: true, id: idpagos, numero, total: pago.total });
+      const correo = req.body.notificar ? await intentar(() => notificarPago(idpagos, { req })) : null;
+      res.status(201).json({ success: true, id: idpagos, numero, total: pago.total, correo });
     } catch (err) { next(err); }
   },
 
@@ -179,12 +182,21 @@ const ctrl = {
     } catch (err) { next(err); }
   },
 
+  // POST /api/pagos/:id/notificar   { correos? }  → (re)envía el comprobante (por defecto al pagador o encargados)
+  async notificar(req, res, next) {
+    try {
+      const r = await notificarPago(Number(req.params.id), { correos: req.body.correos, req });
+      res.json({ success: true, ...r });
+    } catch (err) { next(err); }
+  },
+
   // GET /api/pagos/:id/recibo[?descargar=1]
   async reciboPdf(req, res, next) {
     try {
       const p = await PagoModel.findById(req.params.id);
       if (!p) return res.status(404).json({ message: 'Pago no encontrado' });
-      const doc = generarRecibo(p, await PagoModel.detalle(p.idpagos));
+      const [detalle, colegio] = await Promise.all([PagoModel.detalle(p.idpagos), ConfiguracionModel.datosColegio()]);
+      const doc = generarRecibo(p, detalle, colegio);
       enviar(res, doc, `Recibo ${numeroRecibo(p.numero)}.pdf`, req.query.descargar === '1');
     } catch (err) { next(err); }
   },

@@ -171,16 +171,38 @@ const PagoModel = {
   /** Padre por id con sus datos de facturación. */
   async padre(idpadres) {
     const [rows] = await pool.query(
-      `SELECT p.idpadres, ${sqlNombre('p')} AS nombre, p.nit, p.dpi FROM padres p WHERE p.idpadres = ?`, [idpadres]
+      `SELECT p.idpadres, ${sqlNombre('p')} AS nombre, p.nit, p.dpi, p.email FROM padres p WHERE p.idpadres = ?`, [idpadres]
     );
     return rows[0] || null;
+  },
+
+  /**
+   * Correos a los que se envía el comprobante: el del padre que pagó; si no
+   * se registró pagador (o no tiene correo), los encargados que firmaron las
+   * inscripciones incluidas en el recibo.
+   */
+  async correosComprobante(idpagos) {
+    const [[pago]] = await pool.query(
+      `SELECT p.email FROM pagos pg JOIN padres p ON p.idpadres = pg.idpadres WHERE pg.idpagos = ?`, [idpagos]
+    );
+    if (pago?.email) return [pago.email];
+    const [rows] = await pool.query(
+      `SELECT DISTINCT p.email
+         FROM pagos_detalle pd
+         JOIN inscripciones_cargos ic ON ic.idinscripciones_cargos = pd.idinscripciones_cargos
+         JOIN inscripciones i ON i.idinscripciones = ic.idinscripciones
+         JOIN padres p ON p.idpadres = i.idpadres
+        WHERE pd.idpagos = ? AND p.email IS NOT NULL AND p.email <> ''`,
+      [idpagos]
+    );
+    return rows.map(r => r.email);
   },
 
   /** Encargados del estudiante (para sugerir quién paga). */
   async padresDeEstudiantes(ids) {
     if (!ids.length) return [];
     const [rows] = await pool.query(
-      `SELECT DISTINCT p.idpadres, ${sqlNombre('p')} AS nombre, p.nit, v.parentesco
+      `SELECT DISTINCT p.idpadres, ${sqlNombre('p')} AS nombre, p.nit, p.email, v.parentesco
          FROM estudiantes_padres v JOIN padres p ON p.idpadres = v.idpadres
         WHERE v.idestudiantes IN (?) AND p.activo = 1
         ORDER BY FIELD(v.parentesco, 'Padre', 'Madre', 'Tutor', 'Otro'), p.primer_apellido`,

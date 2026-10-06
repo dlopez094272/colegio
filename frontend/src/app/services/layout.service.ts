@@ -5,7 +5,7 @@ const MOBILE_BREAKPOINT = 768;
 @Injectable({ providedIn: 'root' })
 export class LayoutService {
   collapsed = signal<boolean>(
-    localStorage.getItem('col_sidebar_collapsed') === '1'
+    localStorage.getItem('col_sidebar_collapsed') !== '0'
   );
 
   // Drawer del sidebar en pantallas móviles (off-canvas), siempre arranca cerrado

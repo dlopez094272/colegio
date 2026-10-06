@@ -117,3 +117,21 @@
 }
 
 .ins-anular { color: var(--clr-danger) !important; margin-right: auto; }
+
+/* Aviso de inscripción por correo */
+.ins-notificar {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--clr-border-hv);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+
+  input { margin-top: 3px; accent-color: var(--clr-accent); }
+  .sub-txt { display: block; font-weight: 400; }
+  &.off { opacity: .65; cursor: default; }
+}

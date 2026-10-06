@@ -6,7 +6,8 @@ import { ContextoEstudiante, CuotaGrado, Inscripcion, OpcionesInscripcion, Perso
 import { InscripcionesService } from '../../../services/inscripciones.service';
 import { PersonasService, urlArchivo } from '../../../services/personas.service';
 import { PermisosService } from '../../../services/permisos.service';
-import { confirmDialog, confirmSuccessChoice, promptMotivo, showError, showSuccess, showWarning } from '../../../services/confirm';
+import { confirmDialog, confirmSuccessChoice, promptCorreo, promptMotivo, showError, showSuccess, showWarning } from '../../../services/confirm';
+import { ConfiguracionService } from '../../../services/configuracion.service';
 import { PaginatorComponent } from '../../../shared/paginator/paginator';
 import { RowAction, RowMenuComponent } from '../../../shared/row-menu/row-menu';
 import { BitacoraTabComponent } from '../../../shared/bitacora-tab/bitacora-tab';
@@ -34,6 +35,8 @@ interface InscripcionForm {
   cuotas: CuotaGrado[];
   cargandoCuotas: boolean;
   opcionales: Set<number>;
+  /** Enviar al encargado el aviso de inscripción por correo. */
+  notificar: boolean;
 }
 
 const hoyIso = () => {
@@ -96,7 +99,11 @@ export class InscripcionesPage implements OnInit, OnDestroy {
     public permisos: PermisosService,
     private router: Router,
     private route: ActivatedRoute,
+    private config: ConfiguracionService,
   ) {}
+
+  /** Hay correo saliente configurado (Configuración › Correo saliente). */
+  get correoHabilitado() { return !!this.config.colegio()?.correo_habilitado; }
 
   get puedeA() { return this.permisos.tiene('inscripciones', 'A'); }
   get puedeE() { return this.permisos.tiene('inscripciones', 'E'); }
@@ -190,6 +197,8 @@ export class InscripcionesPage implements OnInit, OnDestroy {
     if (r.estado === 'Activa' && (this.puedeA || this.puedeE))
       a.push({ label: r.contrato_firmado ? 'Contrato firmado' : 'Subir contrato firmado', icon: 'plus', action: () => this.abrirDetalle(r, 'contrato') });
     if (this.puedeE && r.estado === 'Activa') a.push({ label: 'Editar', icon: 'edit', action: () => this.editar(r) });
+    if ((this.puedeA || this.puedeE) && r.estado === 'Activa' && this.correoHabilitado)
+      a.push({ label: 'Enviar aviso por correo', icon: 'mail', action: () => this.notificar(r) });
     a.push({ label: 'Bitácora', icon: 'bitacora', action: () => this.abrirDetalle(r, 'bitacora') });
     if (this.puedeD && r.estado === 'Activa') a.push({ label: 'Anular inscripción', icon: 'anular', variant: 'danger', action: () => this.anular(r) });
     return a;
@@ -216,6 +225,7 @@ export class InscripcionesPage implements OnInit, OnDestroy {
       ciclo: this.ciclo, fecha_inscripcion: hoyIso(),
       idniveles: null, idcarreras: null, idgrados: null, idsecciones: null, idpadres: null,
       observaciones: '', cuotas: [], cargandoCuotas: false, opcionales: new Set(),
+      notificar: this.correoHabilitado && !!this.config.colegio()?.notificar_inscripcion,
     };
   }
 
@@ -226,7 +236,7 @@ export class InscripcionesPage implements OnInit, OnDestroy {
       modo: 'editar', insc: r, estudiante: null, padres: [], historial: [],
       ciclo: r.ciclo, fecha_inscripcion: r.fecha_inscripcion,
       idniveles: r.idniveles, idcarreras: r.idcarreras, idgrados: r.idgrados, idsecciones: r.idsecciones, idpadres: r.idpadres,
-      observaciones: r.observaciones ?? '', cuotas: [], cargandoCuotas: false, opcionales: new Set(),
+      observaciones: r.observaciones ?? '', cuotas: [], cargandoCuotas: false, opcionales: new Set(), notificar: false,
     };
     this.svc.contextoEstudiante(r.idestudiantes).subscribe({
       next: res => { if (this.form?.insc === r) { this.form.estudiante = res.data!.estudiante; this.form.padres = res.data!.padres; } },
@@ -274,6 +284,12 @@ export class InscripcionesPage implements OnInit, OnDestroy {
     this.form.padres = [];
     this.form.historial = [];
     this.form.idpadres = null;
+  }
+
+  /** Encargado elegido para firmar (con su correo). */
+  get encargadoSel() {
+    const f = this.form;
+    return f?.idpadres ? f.padres.find(p => p.id === f.idpadres) ?? null : null;
   }
 
   get yaInscrito() {
@@ -360,6 +376,7 @@ export class InscripcionesPage implements OnInit, OnDestroy {
     this.svc.create({
       idestudiantes: f.estudiante!.idestudiantes, ciclo: Number(f.ciclo), idgrados: f.idgrados!, idsecciones: f.idsecciones,
       idpadres: f.idpadres, fecha_inscripcion: f.fecha_inscripcion, observaciones: f.observaciones, opcionales: [...f.opcionales],
+      notificar: f.notificar && !!this.encargadoSel?.email,
     }).subscribe({
       next: async r => {
         this.saving = false;
@@ -367,9 +384,12 @@ export class InscripcionesPage implements OnInit, OnDestroy {
         if (Number(f.ciclo) !== this.ciclo) this.ciclo = Number(f.ciclo);
         this.load();
         if (r.sinCuotas) showWarning('El grado no tiene cuotas configuradas en este ciclo: el estado de cuenta quedó vacío.');
+        const aviso = !r.correo ? ''
+          : r.correo.enviado ? ` Se envió el aviso de inscripción a ${r.correo.destinatarios?.join(', ')}.`
+          : ` No se pudo enviar el aviso por correo (${r.correo.error}); puede reenviarlo desde el menú de la inscripción.`;
         const ver = await confirmSuccessChoice(
           `Inscripción ${r.codigo}`,
-          `${f.estudiante!.nombre_completo} quedó inscrito con ${r.cargos} cuota(s) en su estado de cuenta. ¿Descargar el contrato para firmar?`,
+          `${f.estudiante!.nombre_completo} quedó inscrito con ${r.cargos} cuota(s) en su estado de cuenta.${aviso} ¿Descargar el contrato para firmar?`,
           'Descargar contrato', 'Ahora no',
         );
         if (ver) this.descargarContrato({ idinscripciones: r.id, codigo: r.codigo } as Inscripcion);
@@ -404,6 +424,20 @@ export class InscripcionesPage implements OnInit, OnDestroy {
     this.svc.anular(r.idinscripciones, motivo).subscribe({
       next: () => { showSuccess('Inscripción anulada'); this.detalle = null; this.load(); },
       error: e => showError(e?.error?.message || 'No se pudo anular'),
+    });
+  }
+
+  // ─── Aviso por correo ───
+  async notificar(r: Inscripcion) {
+    const correos = await promptCorreo(
+      `Aviso de inscripción ${r.codigo}`,
+      `Se enviará la confirmación de inscripción de ${r.estudiante} con el contrato adjunto. Puede indicar varios correos separados por coma.`,
+      r.encargado_email ?? '',
+    );
+    if (!correos) return;
+    this.svc.notificar(r.idinscripciones, correos).subscribe({
+      next: res => showSuccess(`Aviso enviado a ${res.destinatarios.join(', ')}`),
+      error: e => showError(e?.error?.message || 'No se pudo enviar el correo'),
     });
   }
 

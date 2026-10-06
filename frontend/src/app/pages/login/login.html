@@ -6,14 +6,22 @@
   <div class="login-card">
 
     <div class="logo-wrap">
-      <div class="login-brand-icon">
-        <svg viewBox="0 0 24 24" width="30" height="30" fill="none">
-          <path d="M12 4 2 9l10 5 10-5-10-5z" fill="currentColor"/>
-          <path d="M6 11.5V16c0 1.7 2.7 3.2 6 3.2s6-1.5 6-3.2v-4.5l-6 3-6-3z" fill="currentColor" opacity=".75"/>
-          <path d="M21 9.5v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-        </svg>
-      </div>
-      <span class="login-brand-name">COLEGIO</span>
+      @if (config.logoUrl(); as logo) {
+        <div class="login-brand-logo"><img [src]="logo" alt="Logotipo"/></div>
+      } @else {
+        <div class="login-brand-icon">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none">
+            <path d="M12 4 2 9l10 5 10-5-10-5z" fill="currentColor"/>
+            <path d="M6 11.5V16c0 1.7 2.7 3.2 6 3.2s6-1.5 6-3.2v-4.5l-6 3-6-3z" fill="currentColor" opacity=".75"/>
+            <path d="M21 9.5v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </div>
+      }
+      @if (nombreColegio; as nombre) {
+        <span class="login-colegio-name">{{ nombre }}</span>
+      } @else {
+        <span class="login-brand-name">COLEGIO</span>
+      }
       <span class="login-brand-sub">Sistema de gestión escolar</span>
     </div>
 

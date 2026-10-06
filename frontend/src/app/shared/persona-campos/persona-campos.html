@@ -48,6 +48,14 @@
             }
           </select>
         </div>
+        <div class="field">
+          <label class="col-label">Nacionalidad</label>
+          <input class="col-input" [(ngModel)]="model.nacionalidad" [ngModelOptions]="{standalone: true}" maxlength="60"
+                 [attr.list]="'nacionalidades-' + tipo" placeholder="Ej. Guatemalteca"/>
+          <datalist [id]="'nacionalidades-' + tipo">
+            @for (n of nacionalidades; track n) { <option [value]="n"></option> }
+          </datalist>
+        </div>
       }
     </div>
   </div>
@@ -102,6 +110,13 @@
         <input class="col-input" [class.inherited]="esHeredado('telefono_celular')" [(ngModel)]="model.telefono_celular" [ngModelOptions]="{standalone: true}"
                (ngModelChange)="onEdit('telefono_celular')" inputmode="tel" maxlength="20" placeholder="Teléfono celular"/>
       </div>
+      @if (tipo === 'padre') {
+        <div class="field">
+          <label class="col-label">Correo electrónico</label>
+          <input class="col-input" type="email" [(ngModel)]="model.email" [ngModelOptions]="{standalone: true}" maxlength="145"
+                 placeholder="correo@ejemplo.com" title="Recibe la notificación de inscripción y los comprobantes de pago"/>
+        </div>
+      }
     </div>
   </div>
 </div>

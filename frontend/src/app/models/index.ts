@@ -128,10 +128,12 @@ export interface PersonaDatos {
   direccion: string;
   telefono_casa: string;
   telefono_celular: string;
-  // Solo padres de familia
+  // Solo padres de familia (y docentes)
   idestados_civiles?: number | null;
+  nacionalidad?: string;
   nit?: string;
   pasaporte?: string;
+  email?: string;
 }
 
 /** Registro de padre o estudiante tal como lo devuelve el listado/detalle. */
@@ -153,8 +155,10 @@ export interface PersonaRegistro {
   telefono_celular: string | null;
   idestados_civiles?: number | null;
   estado_civil?: string | null;
+  nacionalidad?: string | null;
   nit?: string | null;
   pasaporte?: string | null;
+  email?: string | null;
   nombre_completo: string;
   activo: number;
   usuario_registro: string | null;
@@ -174,6 +178,7 @@ export interface Vinculo {
   primer_apellido?: string;
   dpi?: string | null;
   nit?: string | null;
+  email?: string | null;
   edad?: number | null;
   telefono_celular?: string | null;
   foto?: string | null;
@@ -208,6 +213,7 @@ export interface Docente {
   nit: string | null;
   pasaporte: string | null;
   idestados_civiles: number | null;
+  nacionalidad: string | null;
   estado_civil: string | null;
   direccion: string | null;
   telefono_casa: string | null;
@@ -366,6 +372,7 @@ export interface Inscripcion {
   encargado: string | null;
   encargado_dpi: string | null;
   encargado_telefono: string | null;
+  encargado_email: string | null;
   cargos_pendientes: number;
   cargos_vencidos: number;
   saldo_pendiente: number;
@@ -506,6 +513,64 @@ export interface CargoPendiente {
 
 export interface PendientesPago {
   fecha: string;
-  pagadores: { idpadres: number; nombre: string; nit: string | null; parentesco: string | null }[];
+  pagadores: { idpadres: number; nombre: string; nit: string | null; email: string | null; parentesco: string | null }[];
   cargos: CargoPendiente[];
+}
+
+// ── Configuración del colegio ────────────────────────────────────────────────
+
+/** Datos del colegio para login, dashboard y opciones de correo. */
+export interface ColegioResumen {
+  nombre: string;
+  logo: string | null;
+  direccion?: string | null;
+  municipio?: string | null;
+  departamento?: string | null;
+  telefonos?: string | null;
+  email?: string | null;
+  sitio_web?: string | null;
+  correo_habilitado?: boolean;
+  notificar_inscripcion?: boolean;
+  notificar_pago?: boolean;
+}
+
+export interface Configuracion {
+  nombre: string;
+  direccion: string | null;
+  municipio: string | null;
+  departamento: string | null;
+  telefonos: string | null;
+  email: string | null;
+  nit: string | null;
+  sitio_web: string | null;
+  logo: string | null;
+  representante_nombre: string | null;
+  representante_titulo: string | null;
+  representante_fecha_nacimiento: string | null;
+  representante_estado_civil: string | null;
+  representante_nacionalidad: string | null;
+  representante_profesion: string | null;
+  representante_dpi: string | null;
+  acreditacion: string | null;
+  resolucion_diaco: string | null;
+  autorizacion_servicio: string | null;
+  jornada: string | null;
+  smtp_host: string | null;
+  smtp_puerto: number | null;
+  smtp_seguro: number;
+  smtp_usuario: string | null;
+  smtp_remitente_nombre: string | null;
+  smtp_remitente_email: string | null;
+  notificar_inscripcion: number;
+  notificar_pago: number;
+  smtp_password_guardada: boolean;
+  tiene_firma: boolean;
+  fecha_modificacion: string | null;
+}
+
+/** Resultado del envío automático de correo al crear una inscripción o un pago. */
+export interface ResultadoCorreo {
+  enviado: boolean;
+  destinatarios?: string[];
+  error?: string;
 }

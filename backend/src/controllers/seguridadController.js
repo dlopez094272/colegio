@@ -9,7 +9,7 @@ const SYSTEM_TABLES = [
   'padres', 'estudiantes', 'docentes',
   'estructura_academica', 'inscripciones', 'cuotas', 'pagos',
   'estados_civiles', 'categorias_archivos', 'formaciones_academicas',
-  'bitacora',
+  'configuracion', 'bitacora',
 ];
 
 const seguridadController = {

@@ -268,7 +268,7 @@
                     <input type="radio" name="idpadres" [value]="p.id" [(ngModel)]="f.idpadres"/>
                     <span>
                       <strong>{{ p.nombre_completo }}</strong>
-                      <span class="sub-txt">{{ p.parentesco || 'Encargado' }}{{ p.dpi ? ' · DPI ' + p.dpi : ' · sin DPI' }}</span>
+                      <span class="sub-txt">{{ p.parentesco || 'Encargado' }}{{ p.dpi ? ' · DPI ' + p.dpi : ' · sin DPI' }}{{ p.email ? ' · ' + p.email : ' · sin correo' }}</span>
                     </span>
                   </label>
                 }
@@ -280,6 +280,20 @@
             } @else {
               <p class="field-hint">El estudiante no tiene padres o encargados vinculados; el contrato se generará con espacios en blanco.
                 Puede vincularlos en Comunidad › Estudiantes.</p>
+            }
+            @if (f.modo === 'nuevo' && f.padres.length) {
+              <label class="ins-notificar" [class.off]="!correoHabilitado || !encargadoSel?.email">
+                <input type="checkbox" name="notificar" [(ngModel)]="f.notificar" [disabled]="!correoHabilitado || !encargadoSel?.email"/>
+                <span>
+                  Notificar al encargado por correo
+                  <span class="sub-txt">
+                    @if (!correoHabilitado) { El correo saliente no está configurado (Configuración › Datos del colegio). }
+                    @else if (!encargadoSel) { Seleccione el encargado que firma. }
+                    @else if (!encargadoSel.email) { {{ encargadoSel.nombre_completo }} no tiene correo registrado en su ficha. }
+                    @else { Se enviará la confirmación con el contrato adjunto a {{ encargadoSel.email }}. }
+                  </span>
+                </span>
+              </label>
             }
           </div>
         }

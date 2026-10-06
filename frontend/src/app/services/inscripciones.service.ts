@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { ApiResponse, ContextoEstudiante, CuotaGrado, EstadoCuenta, Inscripcion, OpcionesInscripcion, PagedResponse } from '../models';
+import { ApiResponse, ContextoEstudiante, CuotaGrado, EstadoCuenta, Inscripcion, OpcionesInscripcion, PagedResponse, ResultadoCorreo } from '../models';
 import { environment } from '../../environments/environment';
 
 const BASE = `${environment.apiUrl}/api/inscripciones`;
@@ -15,6 +15,8 @@ export interface InscripcionPayload {
   fecha_inscripcion: string;
   observaciones: string;
   opcionales: number[];
+  /** Enviar al encargado el aviso de inscripción con el contrato. */
+  notificar?: boolean;
 }
 
 export type InscripcionUpdate = Pick<InscripcionPayload, 'idsecciones' | 'idpadres' | 'fecha_inscripcion' | 'observaciones'>;
@@ -42,10 +44,14 @@ export class InscripcionesService {
   contextoEstudiante(id: number) { return this.http.get<ApiResponse<ContextoEstudiante>>(`${BASE}/estudiante/${id}`); }
 
   create(data: InscripcionPayload) {
-    return this.http.post<ApiResponse<any> & { id: number; codigo: string; cargos: number; sinCuotas: boolean }>(BASE, data);
+    return this.http.post<ApiResponse<any> & { id: number; codigo: string; cargos: number; sinCuotas: boolean; correo: ResultadoCorreo | null }>(BASE, data);
   }
   update(id: number, data: InscripcionUpdate) { return this.http.put<ApiResponse<any>>(`${BASE}/${id}`, data); }
   anular(id: number, motivo: string) { return this.http.post<ApiResponse<any>>(`${BASE}/${id}/anular`, { motivo }); }
+  /** Reenvía el aviso de inscripción (con el contrato) a los correos indicados. */
+  notificar(id: number, correos: string) {
+    return this.http.post<ApiResponse<any> & { destinatarios: string[] }>(`${BASE}/${id}/notificar`, { correos });
+  }
 
   // Estado de cuenta
   estadoCuenta(id: number) { return this.http.get<ApiResponse<EstadoCuenta>>(`${BASE}/${id}/estado-cuenta`); }

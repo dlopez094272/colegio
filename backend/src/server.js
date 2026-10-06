@@ -78,6 +78,7 @@ app.use('/api/auth',             require('./routes/passwordReset'));
 app.use('/api/admin/usuarios',   require('./routes/usuariosCrud'));
 app.use('/api/seguridad',        require('./routes/seguridad'));
 app.use('/api/bitacora',         require('./routes/bitacora'));
+app.use('/api/configuracion',    require('./routes/configuracion'));
 
 // Catálogos
 app.use('/api/estados-civiles',  require('./routes/estadosCiviles'));

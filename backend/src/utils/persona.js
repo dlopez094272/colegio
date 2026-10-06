@@ -1,15 +1,16 @@
 // Utilidades compartidas por Padres de familia, Estudiantes y Personal docente:
 // todos guardan los mismos datos personales (padres y docentes agregan NIT,
-// pasaporte y estado civil; los docentes además tipo, correo y fecha de ingreso).
+// pasaporte, estado civil, nacionalidad y correo; los docentes además tipo y
+// fecha de ingreso).
 
 const CAMPOS_BASE = [
   'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido', 'apellido_casada',
   'fecha_nacimiento', 'dpi', 'direccion', 'telefono_casa', 'telefono_celular',
 ];
 
-const CAMPOS_PADRE      = [...CAMPOS_BASE, 'idestados_civiles', 'nit', 'pasaporte'];
+const CAMPOS_PADRE      = [...CAMPOS_BASE, 'idestados_civiles', 'nacionalidad', 'nit', 'pasaporte', 'email'];
 const CAMPOS_ESTUDIANTE = [...CAMPOS_BASE, 'lugar_nacimiento'];
-const CAMPOS_DOCENTE    = [...CAMPOS_PADRE, 'tipo_personal', 'email', 'fecha_ingreso'];
+const CAMPOS_DOCENTE    = [...CAMPOS_PADRE, 'tipo_personal', 'fecha_ingreso'];
 
 const TIPOS_PERSONAL = ['Maestro', 'Coordinador'];
 
@@ -72,7 +73,7 @@ function validar(data, etiqueta = 'registro') {
     if (data[tel] && !/^[\d+\-\s()]{7,20}$/.test(data[tel]))
       return `El ${tel === 'telefono_casa' ? 'teléfono de casa' : 'teléfono celular'} del ${etiqueta} no es válido`;
   }
-  for (const [campo, max] of Object.entries({ primer_nombre: 60, segundo_nombre: 60, primer_apellido: 60, segundo_apellido: 60, apellido_casada: 60, direccion: 300, pasaporte: 30, lugar_nacimiento: 150, email: 145 })) {
+  for (const [campo, max] of Object.entries({ primer_nombre: 60, segundo_nombre: 60, primer_apellido: 60, segundo_apellido: 60, apellido_casada: 60, direccion: 300, pasaporte: 30, lugar_nacimiento: 150, nacionalidad: 60, email: 145 })) {
     if (data[campo] && data[campo].length > max) return `El campo ${campo.replace('_', ' ')} del ${etiqueta} excede ${max} caracteres`;
   }
   return null;

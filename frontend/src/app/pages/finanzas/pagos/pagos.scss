@@ -188,3 +188,20 @@ tr.pg-anulado td:not(.row-menu-col) { opacity: .6; }
   .pg-pie { grid-template-columns: 1fr; }
   .pg-fecha-pago { margin-left: 0; }
 }
+
+/* Comprobante por correo */
+.pg-notificar {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 1px dashed var(--clr-border-hv);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+
+  input { margin-top: 3px; accent-color: var(--clr-accent); }
+  .sub-txt { display: block; font-weight: 400; }
+  &.off { opacity: .65; cursor: default; }
+}

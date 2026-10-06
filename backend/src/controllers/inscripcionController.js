@@ -5,6 +5,7 @@ const multer = require('multer');
 const InscripcionModel = require('../models/inscripcionModel');
 const EstudianteModel  = require('../models/estudianteModel');
 const VinculoModel     = require('../models/vinculoModel');
+const ConfiguracionModel = require('../models/configuracionModel');
 const { registrarBitacora } = require('../utils/bitacora');
 const { enTransaccion, fail } = require('../utils/transaccion');
 const { generarCargos, calcularMora, hoy, redondear } = require('../utils/cargos');
@@ -12,6 +13,7 @@ const { siguienteCorrelativo } = require('../utils/correlativo');
 const { enviar } = require('../pdf/base');
 const { generarContrato } = require('../pdf/contrato');
 const { generarEstadoCuenta } = require('../pdf/estadoCuenta');
+const { notificarInscripcion, intentar } = require('../utils/notificaciones');
 
 // El contrato firmado es un documento sensible: igual que el expediente del
 // estudiante, se guarda en storage/<tenant>/ (fuera de public/) y solo se
@@ -157,7 +159,8 @@ const ctrl = {
   },
 
   // POST /api/inscripciones
-  //   { idestudiantes, ciclo, idgrados, idsecciones?, idpadres?, fecha_inscripcion, observaciones?, opcionales?: [idcuotas_ciclos] }
+  //   { idestudiantes, ciclo, idgrados, idsecciones?, idpadres?, fecha_inscripcion, observaciones?, opcionales?: [idcuotas_ciclos],
+  //     notificar?: true → envía al encargado el aviso de inscripción con el contrato }
   async create(req, res, next) {
     try {
       const idestudiantes = idPositivo(req.body.idestudiantes);
@@ -212,7 +215,8 @@ const ctrl = {
         },
         req,
       });
-      res.status(201).json({ success: true, id, codigo, cargos: cargos.length, sinCuotas: !cuotas.length });
+      const correo = req.body.notificar ? await intentar(() => notificarInscripcion(id, { req })) : null;
+      res.status(201).json({ success: true, id, codigo, cargos: cargos.length, sinCuotas: !cuotas.length, correo });
     } catch (err) { next(err); }
   },
 
@@ -295,7 +299,8 @@ const ctrl = {
       const id = Number(req.params.id);
       const i = await InscripcionModel.findById(id);
       if (!i) return res.status(404).json({ message: 'Inscripción no encontrada' });
-      const doc = generarEstadoCuenta(i, await InscripcionModel.cargos(id));
+      const [cargos, colegio] = await Promise.all([InscripcionModel.cargos(id), ConfiguracionModel.datosColegio()]);
+      const doc = generarEstadoCuenta(i, cargos, colegio);
       enviar(res, doc, `Estado de cuenta ${i.codigo}.pdf`, req.query.descargar === '1');
     } catch (err) { next(err); }
   },
@@ -376,8 +381,16 @@ const ctrl = {
       const id = Number(req.params.id);
       const i = await InscripcionModel.findById(id);
       if (!i) return res.status(404).json({ message: 'Inscripción no encontrada' });
-      const doc = generarContrato(i, await InscripcionModel.cargos(id));
+      const doc = generarContrato(i, await ConfiguracionModel.datosColegio());
       enviar(res, doc, `Contrato ${i.codigo}.pdf`, req.query.descargar === '1');
+    } catch (err) { next(err); }
+  },
+
+  // POST /api/inscripciones/:id/notificar   { correos? }  → reenvía el aviso de inscripción (por defecto al encargado)
+  async notificar(req, res, next) {
+    try {
+      const r = await notificarInscripcion(Number(req.params.id), { correos: req.body.correos, req });
+      res.json({ success: true, ...r });
     } catch (err) { next(err); }
   },
 

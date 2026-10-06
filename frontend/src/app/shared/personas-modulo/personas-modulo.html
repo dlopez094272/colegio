@@ -253,6 +253,7 @@
               </div>
               @if (esPadres) {
                 <div class="ficha-field"><span class="ff-label">Estado civil</span><span class="ff-value">{{ viewItem.estado_civil || '—' }}</span></div>
+                <div class="ficha-field"><span class="ff-label">Nacionalidad</span><span class="ff-value">{{ viewItem.nacionalidad || '—' }}</span></div>
               } @else {
                 <div class="ficha-field"><span class="ff-label">Lugar de nacimiento</span><span class="ff-value">{{ viewItem.lugar_nacimiento || '—' }}</span></div>
               }
@@ -274,6 +275,9 @@
               <div class="ficha-field full"><span class="ff-label">Dirección</span><span class="ff-value">{{ viewItem.direccion || '—' }}</span></div>
               <div class="ficha-field"><span class="ff-label">Teléfono de casa</span><span class="ff-value">{{ viewItem.telefono_casa || '—' }}</span></div>
               <div class="ficha-field"><span class="ff-label">Teléfono celular</span><span class="ff-value">{{ viewItem.telefono_celular || '—' }}</span></div>
+              @if (esPadres) {
+                <div class="ficha-field"><span class="ff-label">Correo electrónico</span><span class="ff-value">{{ viewItem.email || '—' }}</span></div>
+              }
             </div>
           </div>
           <div class="ficha-section">

@@ -7,7 +7,7 @@ const PadreModel = crearModeloPersona({
   otraTabla:   'estudiantes',
   otroPk:      'idestudiantes',
   campos:      CAMPOS_PADRE,
-  buscables:   ['nit', 'pasaporte'],
+  buscables:   ['nit', 'pasaporte', 'email'],
   joins:       'LEFT JOIN estados_civiles ec ON ec.idestados_civiles = t.idestados_civiles',
   selectExtra: ', ec.estado_civil',
   sortExtra: {
@@ -18,6 +18,7 @@ const PadreModel = crearModeloPersona({
   filterExtra: {
     nit:               { column: 't.nit',               type: 'text' },
     pasaporte:         { column: 't.pasaporte',         type: 'text' },
+    email:             { column: 't.email',             type: 'text' },
     idestados_civiles: { column: 't.idestados_civiles', type: 'exact' },
   },
 });

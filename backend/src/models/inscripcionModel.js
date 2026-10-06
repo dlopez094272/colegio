@@ -16,6 +16,8 @@ const FROM = `
     LEFT JOIN carreras c  ON c.idcarreras = g.idcarreras
     LEFT JOIN secciones s ON s.idsecciones = i.idsecciones
     LEFT JOIN padres p    ON p.idpadres = i.idpadres
+    LEFT JOIN estados_civiles ecp  ON ecp.idestados_civiles = p.idestados_civiles
+    LEFT JOIN estudiantes_padres v ON v.idestudiantes = i.idestudiantes AND v.idpadres = i.idpadres
     LEFT JOIN usuarios u  ON u.idusuarios = i.idusuarios`;
 
 const SELECT = `
@@ -29,7 +31,10 @@ const SELECT = `
          e.direccion AS estudiante_direccion,
          g.grado, g.idniveles, n.nivel, g.idcarreras, c.carrera, s.seccion,
          ${sqlNombre('p')} AS encargado, p.dpi AS encargado_dpi, p.nit AS encargado_nit,
-         p.telefono_celular AS encargado_telefono, p.direccion AS encargado_direccion,
+         p.telefono_celular AS encargado_telefono, p.telefono_casa AS encargado_telefono_casa,
+         p.direccion AS encargado_direccion, p.email AS encargado_email, p.nacionalidad AS encargado_nacionalidad,
+         TIMESTAMPDIFF(YEAR, p.fecha_nacimiento, i.fecha_inscripcion) AS encargado_edad,
+         ecp.estado_civil AS encargado_estado_civil, v.parentesco AS encargado_parentesco,
          (SELECT COUNT(*) FROM inscripciones_cargos ic
            WHERE ic.idinscripciones = i.idinscripciones AND ic.estado = 'Pendiente') AS cargos_pendientes,
          (SELECT COUNT(*) FROM inscripciones_cargos ic

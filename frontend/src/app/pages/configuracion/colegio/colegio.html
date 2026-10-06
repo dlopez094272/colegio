@@ -1,0 +1,310 @@
+<div class="page-header">
+  <div>
+    <h1>
+      <span class="h1-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+      </span>
+      Datos del colegio
+    </h1>
+    <p class="page-subtitle">Se muestran en el login, el dashboard, los contratos, recibos y correos a padres de familia</p>
+  </div>
+  @if (cfg?.fecha_modificacion) {
+    <span class="cfg-modificado">Última modificación: {{ cfg!.fecha_modificacion | date:'dd/MM/yyyy HH:mm' }}</span>
+  }
+</div>
+
+@if (loading) {
+  <div class="col-card"><div class="loading-state"><span class="spinner dark"></span> Cargando configuración...</div></div>
+} @else {
+  <div class="col-card cfg-card">
+    <div class="detail-tabs cfg-tabs">
+      <button class="detail-tab" [class.active]="tab === 'general'" (click)="tab = 'general'">Datos generales</button>
+      <button class="detail-tab" [class.active]="tab === 'contrato'" (click)="tab = 'contrato'">Contrato de inscripción</button>
+      <button class="detail-tab" [class.active]="tab === 'correo'" (click)="tab = 'correo'">Correo saliente</button>
+    </div>
+
+    <form (ngSubmit)="guardar()" class="cfg-body">
+      <fieldset [disabled]="!puedeE">
+
+        <!-- ═════════════ Datos generales ═════════════ -->
+        @if (tab === 'general') {
+          <div class="form-section">
+            <div class="form-section-title">Logotipo</div>
+            <div class="cfg-logo">
+              <div class="cfg-logo-preview">
+                @if (logoUrl) { <img [src]="logoUrl" alt="Logotipo del colegio"/> }
+                @else { <span>Sin logotipo</span> }
+              </div>
+              <div>
+                <p class="field-hint cfg-hint">Aparece en la pantalla de inicio de sesión, el dashboard y el encabezado de contratos, recibos y estados de cuenta.
+                  Use PNG (de preferencia con fondo transparente) o JPG, máximo 2 MB.</p>
+                @if (puedeE) {
+                  <div class="cfg-acciones">
+                    <label class="btn-col sm" [class.primary]="!cfg?.logo" [class.outline]="cfg?.logo" [class.disabled]="subiendoLogo">
+                      @if (subiendoLogo) { <span class="spinner"></span> }
+                      {{ cfg?.logo ? 'Cambiar logotipo' : 'Subir logotipo' }}
+                      <input type="file" accept="image/png,image/jpeg" hidden (change)="subirLogo($event)" [disabled]="subiendoLogo"/>
+                    </label>
+                    @if (cfg?.logo) { <button type="button" class="btn-col ghost sm" (click)="quitarLogo()">Quitar</button> }
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Identificación</div>
+            <div class="field-grid">
+              <div class="field span-2">
+                <label class="col-label">Nombre del colegio <span class="req">*</span></label>
+                <input class="col-input" name="nombre" [(ngModel)]="f.nombre" maxlength="150" placeholder="Ej. Colegio Evangélico Mixto Nazareno"/>
+              </div>
+              <div class="field">
+                <label class="col-label">NIT</label>
+                <input class="col-input mono" name="nit" [(ngModel)]="f.nit" maxlength="20" placeholder="Ej. 1234567-8"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Ubicación y contacto</div>
+            <div class="field-grid">
+              <div class="field span-3">
+                <label class="col-label">Dirección</label>
+                <input class="col-input" name="direccion" [(ngModel)]="f.direccion" maxlength="300" placeholder="Ej. 15 avenida 5-36 Zona 5"/>
+              </div>
+              <div class="field">
+                <label class="col-label">Municipio</label>
+                <input class="col-input" name="municipio" [(ngModel)]="f.municipio" maxlength="80" placeholder="Ej. San Marcos"/>
+              </div>
+              <div class="field">
+                <label class="col-label">Departamento</label>
+                <input class="col-input" name="departamento" [(ngModel)]="f.departamento" maxlength="80" placeholder="Ej. San Marcos"/>
+              </div>
+              <div class="field">
+                <label class="col-label">Teléfonos</label>
+                <input class="col-input" name="telefonos" [(ngModel)]="f.telefonos" maxlength="100" placeholder="Ej. 4055-1533 y 7760-3145"/>
+              </div>
+              <div class="field">
+                <label class="col-label">Correo electrónico</label>
+                <input class="col-input" type="email" name="email" [(ngModel)]="f.email" maxlength="145" placeholder="info@colegio.edu.gt"/>
+              </div>
+              <div class="field span-2">
+                <label class="col-label">Sitio web</label>
+                <input class="col-input" name="sitio_web" [(ngModel)]="f.sitio_web" maxlength="150" placeholder="www.colegio.edu.gt"/>
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- ═════════════ Contrato ═════════════ -->
+        @if (tab === 'contrato') {
+          <p class="cfg-intro">Estos datos llenan la primera hoja del <strong>contrato de adhesión por prestación de servicios educativos</strong> (formato DIACO).
+            Los del padre de familia y del estudiante se toman de sus fichas; lo que falte queda como línea en blanco para llenarse a mano.</p>
+
+          <div class="form-section">
+            <div class="form-section-title">Representante legal</div>
+            <div class="field-grid">
+              <div class="field">
+                <label class="col-label">Título</label>
+                <input class="col-input" name="representante_titulo" [(ngModel)]="f.representante_titulo" maxlength="20" placeholder="Ej. Licda."/>
+                <div class="field-hint">Se antepone al nombre bajo la firma.</div>
+              </div>
+              <div class="field span-2">
+                <label class="col-label">Nombre completo</label>
+                <input class="col-input" name="representante_nombre" [(ngModel)]="f.representante_nombre" maxlength="150"/>
+              </div>
+              <div class="field">
+                <label class="col-label">Fecha de nacimiento</label>
+                <input class="col-input" type="date" name="representante_fecha_nacimiento" [(ngModel)]="f.representante_fecha_nacimiento"/>
+                <div class="field-hint">La edad se calcula a la fecha de cada contrato.</div>
+              </div>
+              <div class="field">
+                <label class="col-label">Estado civil</label>
+                <input class="col-input" name="representante_estado_civil" [(ngModel)]="f.representante_estado_civil" maxlength="30" placeholder="Ej. casada"/>
+              </div>
+              <div class="field">
+                <label class="col-label">Nacionalidad</label>
+                <input class="col-input" name="representante_nacionalidad" [(ngModel)]="f.representante_nacionalidad" maxlength="60" placeholder="Ej. guatemalteca"/>
+              </div>
+              <div class="field span-2">
+                <label class="col-label">Profesión</label>
+                <input class="col-input" name="representante_profesion" [(ngModel)]="f.representante_profesion" maxlength="150"
+                       placeholder="Ej. Administradora Educativa en el grado de licenciatura"/>
+              </div>
+              <div class="field">
+                <label class="col-label">DPI</label>
+                <input class="col-input mono" name="representante_dpi" [(ngModel)]="f.representante_dpi" maxlength="15" inputmode="numeric" placeholder="13 dígitos"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Firma escaneada <span class="hint">opcional</span></div>
+            <div class="cfg-logo">
+              <div class="cfg-logo-preview firma">
+                @if (firmaUrl) { <img [src]="firmaUrl" alt="Firma del representante"/> }
+                @else { <span>Sin firma</span> }
+              </div>
+              <div>
+                <p class="field-hint cfg-hint">Si se carga, se imprime sobre la línea de firma del representante en la última hoja del contrato.
+                  Se guarda de forma privada. PNG con fondo transparente o JPG, máximo 2 MB.</p>
+                @if (puedeE) {
+                  <div class="cfg-acciones">
+                    <label class="btn-col sm outline" [class.disabled]="subiendoFirma">
+                      @if (subiendoFirma) { <span class="spinner dark"></span> }
+                      {{ cfg?.tiene_firma ? 'Cambiar firma' : 'Subir firma' }}
+                      <input type="file" accept="image/png,image/jpeg" hidden (change)="subirFirma($event)" [disabled]="subiendoFirma"/>
+                    </label>
+                    @if (cfg?.tiene_firma) { <button type="button" class="btn-col ghost sm" (click)="quitarFirma()">Quitar</button> }
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Resoluciones y autorizaciones</div>
+            <div class="cfg-stack">
+              <div class="field">
+                <label class="col-label">Resolución DIACO</label>
+                <input class="col-input" name="resolucion_diaco" [(ngModel)]="f.resolucion_diaco" maxlength="300"
+                       placeholder="Ej. DDC-61-2017 GUATEMALA, VEINTISEIS DE ENERO DEL AÑO DOS MIL DIECISIETE"/>
+                <div class="field-hint">"Aprobado y Registrado según Resolución DIACO: …"</div>
+              </div>
+              <div class="field">
+                <label class="col-label">Acreditación de la representación legal</label>
+                <textarea class="col-input" name="acreditacion" [(ngModel)]="f.acreditacion" maxlength="400" rows="2"
+                          placeholder="Ej. Patente de Comercio No. De Registro 531033 Folio 72 Libro 493 y Resolución Ministerial No. 130-2006 Ref. AOdG/ude/cegr"></textarea>
+                <div class="field-hint">"Lo cual acredito de conformidad con: …"</div>
+              </div>
+              <div class="field">
+                <label class="col-label">Autorización del servicio educativo</label>
+                <input class="col-input" name="autorizacion_servicio" [(ngModel)]="f.autorizacion_servicio" maxlength="300"
+                       placeholder="Ej. Acuerdo Ministerial No. 1456 y la Resolución No. 0226-99 AMS/uda-mll"/>
+                <div class="field-hint">"…autorizado por el Ministerio de Educación, de conformidad con el …"</div>
+              </div>
+              <div class="field cfg-jornada">
+                <label class="col-label">Jornada</label>
+                <input class="col-input" name="jornada" [(ngModel)]="f.jornada" maxlength="30" list="cfg-jornadas" placeholder="Ej. Matutina"/>
+                <datalist id="cfg-jornadas">@for (j of jornadas; track j) { <option [value]="j"></option> }</datalist>
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- ═════════════ Correo ═════════════ -->
+        @if (tab === 'correo') {
+          <p class="cfg-intro">Servidor desde el que se envían el <strong>aviso de inscripción</strong> (con el contrato adjunto) y el
+            <strong>comprobante de cada pago</strong> (con el recibo adjunto) al correo registrado en la ficha del padre de familia.</p>
+
+          <div class="form-section">
+            <div class="form-section-title">Servidor SMTP</div>
+            <div class="field-grid">
+              <div class="field span-2">
+                <label class="col-label">Servidor (host)</label>
+                <input class="col-input mono" name="smtp_host" [(ngModel)]="f.smtp_host" maxlength="150" placeholder="Ej. mail.colegio.edu.gt o smtp.gmail.com"/>
+              </div>
+              <div class="field">
+                <label class="col-label">Puerto</label>
+                <input class="col-input mono" type="number" name="smtp_puerto" [(ngModel)]="f.smtp_puerto" min="1" max="65535"/>
+              </div>
+              <div class="field span-3">
+                <label class="switch-wrap">
+                  <input type="checkbox" [checked]="f.smtp_seguro === 1" (change)="f.smtp_seguro = $any($event.target).checked ? 1 : 0; onSeguro()"/>
+                  <span class="switch-slider"></span>
+                  <span class="switch-label">
+                    {{ f.smtp_seguro ? 'Conexión segura SSL/TLS' : 'STARTTLS' }}
+                    <span class="switch-desc">{{ f.smtp_seguro ? 'Normalmente puerto 465' : 'Normalmente puerto 587 (la conexión se cifra después de conectar)' }}</span>
+                  </span>
+                </label>
+              </div>
+              <div class="field">
+                <label class="col-label">Usuario</label>
+                <input class="col-input" name="smtp_usuario" [(ngModel)]="f.smtp_usuario" maxlength="150" autocomplete="off" placeholder="notificaciones@colegio.edu.gt"/>
+              </div>
+              <div class="field span-2">
+                <label class="col-label">
+                  Contraseña
+                  @if (cfg?.smtp_password_guardada && !smtpPasswordBorrar) { <span class="chip success">guardada</span> }
+                </label>
+                <input class="col-input" type="password" name="smtp_password" [(ngModel)]="f.smtp_password" maxlength="200" autocomplete="new-password"
+                       [placeholder]="cfg?.smtp_password_guardada ? 'Dejar en blanco para conservar la actual' : 'Contraseña del correo'"/>
+                <div class="field-hint">Se guarda cifrada y nunca se muestra.
+                  @if (cfg?.smtp_password_guardada && puedeE) {
+                    <label class="cfg-check"><input type="checkbox" name="smtpPasswordBorrar" [(ngModel)]="smtpPasswordBorrar"/> Borrar la contraseña guardada</label>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Remitente</div>
+            <div class="field-grid">
+              <div class="field">
+                <label class="col-label">Nombre que verán los padres</label>
+                <input class="col-input" name="smtp_remitente_nombre" [(ngModel)]="f.smtp_remitente_nombre" maxlength="150" [placeholder]="f.nombre || 'Nombre del colegio'"/>
+              </div>
+              <div class="field span-2">
+                <label class="col-label">Correo del remitente</label>
+                <input class="col-input" type="email" name="smtp_remitente_email" [(ngModel)]="f.smtp_remitente_email" maxlength="150"
+                       [placeholder]="f.smtp_usuario || 'Si se deja vacío se usa el usuario'"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Notificaciones a padres de familia</div>
+            <div class="cfg-stack">
+              <label class="switch-wrap">
+                <input type="checkbox" [checked]="f.notificar_inscripcion === 1" (change)="f.notificar_inscripcion = $any($event.target).checked ? 1 : 0"/>
+                <span class="switch-slider"></span>
+                <span class="switch-label">
+                  Enviar aviso de inscripción
+                  <span class="switch-desc">Al inscribir, la opción "Notificar al encargado por correo" aparece marcada (puede desmarcarse en cada inscripción)</span>
+                </span>
+              </label>
+              <label class="switch-wrap">
+                <input type="checkbox" [checked]="f.notificar_pago === 1" (change)="f.notificar_pago = $any($event.target).checked ? 1 : 0"/>
+                <span class="switch-slider"></span>
+                <span class="switch-label">
+                  Enviar comprobante de pago
+                  <span class="switch-desc">Al registrar un pago, la opción "Enviar comprobante por correo" aparece marcada</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          @if (puedeE) {
+            <div class="form-section">
+              <div class="form-section-title">Probar configuración</div>
+              <div class="cfg-prueba">
+                <input class="col-input" type="email" name="correoPrueba" [(ngModel)]="correoPrueba" placeholder="correo@ejemplo.com"/>
+                <button type="button" class="btn-col outline" (click)="probar()" [disabled]="probando">
+                  @if (probando) { <span class="spinner dark"></span> }
+                  Enviar correo de prueba
+                </button>
+              </div>
+              <div class="field-hint">Usa los datos escritos arriba aunque aún no se hayan guardado.</div>
+            </div>
+          }
+        }
+      </fieldset>
+
+      @if (error) { <div class="alert-error">{{ error }}</div> }
+      @if (puedeE) {
+        <div class="cfg-footer">
+          <button type="button" class="btn-col ghost" (click)="cargar()" [disabled]="saving">Descartar cambios</button>
+          <button type="submit" class="btn-col primary" [disabled]="saving">
+            @if (saving) { <span class="spinner"></span> }
+            Guardar configuración
+          </button>
+        </div>
+      }
+    </form>
+  </div>
+}

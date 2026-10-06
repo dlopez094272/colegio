@@ -1,24 +1,48 @@
+const fs = require('fs');
 const PDFDocument = require('pdfkit');
 const { getCurrentTenant } = require('../config/tenantContext');
 
 // Utilidades comunes a los PDF (contrato, recibo, estado de cuenta).
-// Formato estándar provisional: carta, encabezado con los datos del colegio
-// (tenants.json → colegio) y paleta del sistema (amarillo apagado + carbón).
+// Formato: carta, encabezado con los datos y el logotipo del colegio
+// (ConfiguracionModel.datosColegio, que el controlador pasa a crearDoc) y
+// paleta del sistema (amarillo apagado + carbón).
 
 const COLOR = { acento: '#D4B24C', oscuro: '#1E1D1B', texto: '#2A2926', gris: '#6B6862', linea: '#D9D5CC', fondo: '#F6F4EF' };
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
-function datosColegio() {
+/** Datos del colegio con que se creó el documento (o los de tenants.json si no se pasaron). */
+function datosColegio(doc) {
+  if (doc?._colegio) return doc._colegio;
   const c = getCurrentTenant()?.colegio || {};
-  return { nombre: c.nombre || 'Colegio', direccion: c.direccion || '', telefono: c.telefono || '', nit: c.nit || '' };
+  return { nombre: c.nombre || 'Colegio', direccion: c.direccion || '', telefonos: c.telefono || '', nit: c.nit || '' };
 }
 
-function crearDoc(titulo) {
-  return new PDFDocument({
+/** @param {object} [colegio] - ConfiguracionModel.datosColegio() */
+function crearDoc(titulo, colegio = null, margins = { top: 48, bottom: 56, left: 54, right: 54 }) {
+  const doc = new PDFDocument({
     size: 'LETTER',
-    margins: { top: 48, bottom: 56, left: 54, right: 54 },
+    margins,
     bufferPages: true,
-    info: { Title: titulo, Author: datosColegio().nombre },
+    info: { Title: titulo, Author: colegio?.nombre || datosColegio().nombre },
+  });
+  doc._colegio = colegio || datosColegio();
+  return doc;
+}
+
+/** Dibuja una imagen (logo, firma) si existe y es PNG/JPG; no interrumpe el PDF si falla. */
+function imagen(doc, ruta, x, y, opts) {
+  if (!ruta || !fs.existsSync(ruta)) return false;
+  try { doc.image(ruta, x, y, opts); return true; } catch { return false; }
+}
+
+/** Genera el PDF completo en memoria (para adjuntarlo a un correo). */
+function aBuffer(doc) {
+  return new Promise((resolve, reject) => {
+    const partes = [];
+    doc.on('data', d => partes.push(d));
+    doc.on('end', () => resolve(Buffer.concat(partes)));
+    doc.on('error', reject);
+    doc.end();
   });
 }
 
@@ -90,19 +114,24 @@ const anchoUtil = doc => doc.page.width - doc.page.margins.left - doc.page.margi
 
 /** Encabezado: colegio a la izquierda, título del documento y número a la derecha. */
 function encabezado(doc, { titulo, numero, subtitulo }) {
-  const col = datosColegio();
+  const col = datosColegio(doc);
   const x = doc.page.margins.left, y = doc.page.margins.top, w = anchoUtil(doc);
 
-  doc.rect(x, y, 6, 46).fill(COLOR.acento);
-  doc.fillColor(COLOR.oscuro).font('Helvetica-Bold').fontSize(15).text(col.nombre, x + 14, y, { width: w * 0.58 });
-  const lineas = [col.direccion, [col.telefono && `Tel. ${col.telefono}`, col.nit && `NIT ${col.nit}`].filter(Boolean).join('  ·  ')].filter(Boolean);
-  doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.gris).text(lineas.join('\n') || ' ', x + 14, doc.y + 2, { width: w * 0.58 });
+  // Logotipo (si está configurado) en lugar de la barra de acento
+  const conLogo = imagen(doc, col.logoRuta, x, y, { fit: [46, 46], align: 'center', valign: 'center' });
+  if (!conLogo) doc.rect(x, y, 6, 46).fill(COLOR.acento);
+  const xt = x + (conLogo ? 54 : 14), wt = w * 0.58 - (conLogo ? 40 : 0);
+  doc.fillColor(COLOR.oscuro).font('Helvetica-Bold').fontSize(15).text(col.nombre, xt, y, { width: wt });
+  const lugar = [col.direccion, [col.municipio, col.departamento].filter(Boolean).join(', ')].filter(Boolean).join(', ');
+  const lineas = [lugar, [col.telefonos && `Tel. ${col.telefonos}`, col.nit && `NIT ${col.nit}`].filter(Boolean).join('  ·  ')].filter(Boolean);
+  doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.gris).text(lineas.join('\n') || ' ', xt, doc.y + 2, { width: wt });
+  const finIzq = doc.y;
 
   doc.font('Helvetica-Bold').fontSize(12).fillColor(COLOR.oscuro).text(titulo.toUpperCase(), x + w * 0.55, y, { width: w * 0.45, align: 'right' });
   if (numero) doc.font('Helvetica-Bold').fontSize(11).fillColor(COLOR.acento).text(numero, { width: w * 0.45, align: 'right' });
   if (subtitulo) doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.gris).text(subtitulo, { width: w * 0.45, align: 'right' });
 
-  const fin = Math.max(y + 52, doc.y + 6);
+  const fin = Math.max(y + 52, doc.y + 6, finIzq + 6);
   doc.moveTo(x, fin).lineTo(x + w, fin).lineWidth(1).strokeColor(COLOR.linea).stroke();
   doc.x = x;
   doc.y = fin + 12;
@@ -235,7 +264,7 @@ function marcaAgua(doc, texto) {
 }
 
 module.exports = {
-  COLOR, datosColegio, crearDoc, enviar,
+  COLOR, MESES, datosColegio, crearDoc, enviar, imagen, aBuffer,
   q, fecha, fechaLarga, montoEnLetras,
   anchoUtil, encabezado, seccion, campos, tabla, firmas, pie, marcaAgua, asegurarEspacio,
 };

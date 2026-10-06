@@ -40,13 +40,15 @@ Usuario inicial: **admin / admin123** (pide cambiar la contraseña al primer ing
   cada CREAR / MODIFICAR (con valores antes/después) / ACTIVAR / INACTIVAR /
   ASIGNAR / DESASIGNAR / ELIMINAR, con usuario, IP y fecha.
 - **Sesión**: cierre por inactividad (2 h), cambio obligatorio de contraseña
-  (`primer = 1`), restablecimiento por correo (SMTP en `.env`).
+  (`primer = 1`), restablecimiento por correo (SMTP del colegio en Configuración;
+  si no está configurado, el de `.env`).
 
 ## Módulos
 
 - **Padres de familia** (`/api/padres`): nombres, apellidos, apellido de casada,
-  fecha de nacimiento, estado civil (catálogo), NIT, DPI, pasaporte, dirección,
-  teléfonos y estado activo.
+  fecha de nacimiento, estado civil (catálogo), nacionalidad, NIT, DPI, pasaporte,
+  dirección, teléfonos, correo electrónico (avisos de inscripción y comprobantes de
+  pago) y estado activo.
 - **Estudiantes** (`/api/estudiantes`): mismos datos personales más lugar de
   nacimiento, sin NIT, pasaporte ni estado civil. Fotografía tomada con la cámara o
   subida desde archivo (recortada a 3:4 y comprimida en el navegador; se guarda en
@@ -66,6 +68,17 @@ Usuario inicial: **admin / admin123** (pide cambiar la contraseña al primer ing
   Frontend con dos vistas: **Jerarquía** (árbol gráfico con "+" para agregar hijo o
   hermano) y **Tabla** (maestro-detalle en cascada con alta rápida y atajos).
   BD existentes: ejecutar `database/migration_estructura_academica.sql`.
+- **Configuración del colegio** (`/api/configuracion`, permiso `configuracion`; una
+  fila por tenant): nombre, dirección, teléfonos, NIT y logotipo (login, dashboard,
+  menú y encabezado de todos los PDF); datos del representante legal y resoluciones
+  que llenan el **contrato de adhesión DIACO** (`pdf/contrato.js`: hoja 1 con los
+  datos del colegio, encargado y estudiante; hojas 2-3 con el texto aprobado);
+  firma escaneada opcional (privada en `storage/<tenant>/colegio/`); servidor SMTP
+  (contraseña cifrada AES-256-GCM con clave derivada del `jwtSecret` del tenant) y
+  notificaciones: aviso de inscripción con el contrato adjunto y comprobante de cada
+  pago con el recibo adjunto (`utils/notificaciones.js`), automáticos al guardar o
+  reenviables desde el menú de cada inscripción/recibo.
+  BD existentes: ejecutar `database/migration_configuracion.sql`.
 - **Catálogo de estados civiles**, **usuarios**, **grupos/permisos** y
   **bitácora global**.
 

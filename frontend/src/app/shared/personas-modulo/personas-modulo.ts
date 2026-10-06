@@ -192,7 +192,7 @@ export class PersonasModuloComponent implements OnInit, OnDestroy {
           apellido_casada: d.apellido_casada ?? '', fecha_nacimiento: d.fecha_nacimiento ?? '',
           lugar_nacimiento: d.lugar_nacimiento ?? '', dpi: d.dpi ?? '', direccion: d.direccion ?? '', telefono_casa: d.telefono_casa ?? '',
           telefono_celular: d.telefono_celular ?? '', idestados_civiles: d.idestados_civiles ?? null,
-          nit: d.nit ?? '', pasaporte: d.pasaporte ?? '',
+          nacionalidad: d.nacionalidad ?? '', nit: d.nit ?? '', pasaporte: d.pasaporte ?? '', email: d.email ?? '',
         };
         this.activo = d.activo ? 1 : 0;
         this.vinculos = vinculosDesdeRegistro(d.vinculos ?? []);
@@ -208,6 +208,7 @@ export class PersonasModuloComponent implements OnInit, OnDestroy {
     if (!this.form.primer_nombre.trim())   return 'El primer nombre es requerido.';
     if (!this.form.primer_apellido.trim()) return 'El primer apellido es requerido.';
     if (this.form.dpi && !/^\d{13}$/.test(this.form.dpi)) return 'El DPI debe tener 13 dígitos.';
+    if (this.esPadres && this.form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.form.email.trim())) return 'El correo electrónico no es válido.';
     for (const v of this.vinculos) {
       if (!v.nuevo) continue;
       if (!v.nuevo.primer_nombre.trim() || !v.nuevo.primer_apellido.trim()) {
@@ -228,7 +229,7 @@ export class PersonasModuloComponent implements OnInit, OnDestroy {
 
     const payload = { ...this.form, activo: this.activo, vinculos: vinculosPayload(this.vinculos) };
     if (this.esPadres) delete (payload as any).lugar_nacimiento;
-    else { delete (payload as any).nit; delete (payload as any).pasaporte; delete (payload as any).idestados_civiles; }
+    else { for (const c of ['nit', 'pasaporte', 'idestados_civiles', 'nacionalidad', 'email']) delete (payload as any)[c]; }
 
     this.saving = true;
     const req$ = this.isEdit && this.editId

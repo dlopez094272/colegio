@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth';
 import { SessionService } from '../../services/session.service';
+import { ConfiguracionService } from '../../services/configuracion.service';
 
 interface NetworkParticle {
   x: number; y: number; vx: number; vy: number; r: number; phase: number;
@@ -41,10 +42,18 @@ export class Login implements OnInit, AfterViewInit, OnDestroy {
     private router: Router,
     private session: SessionService,
     private zone: NgZone,
+    public config: ConfiguracionService,
   ) {}
 
   ngOnInit() {
     this.session.stop();
+    this.config.cargarPublica();
+  }
+
+  /** Nombre configurado del colegio (null mientras sea el genérico). */
+  get nombreColegio(): string | null {
+    const n = this.config.colegio()?.nombre?.trim();
+    return n && n !== 'Colegio' ? n : null;
   }
 
   ngAfterViewInit(): void {

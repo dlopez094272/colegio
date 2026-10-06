@@ -1,7 +1,14 @@
 <div class="welcome">
-  <div>
-    <h1>{{ saludo }}{{ nombre ? ', ' + nombre : '' }}</h1>
-    <p>Resumen general de la comunidad educativa.</p>
+  <div class="welcome-main">
+    @if (config.logoUrl(); as logo) {
+      <div class="welcome-logo"><img [src]="logo" alt="Logotipo del colegio"/></div>
+    }
+    <div>
+      @if (colegio?.nombre && colegio!.nombre !== 'Colegio') { <span class="welcome-colegio">{{ colegio!.nombre }}</span> }
+      <h1>{{ saludo }}{{ nombre ? ', ' + nombre : '' }}</h1>
+      <p>Resumen general de la comunidad educativa.</p>
+      @if (contacto) { <p class="welcome-contacto">{{ contacto }}</p> }
+    </div>
   </div>
   <div class="quick">
     @if (permisos.tiene('estudiantes', 'S')) {

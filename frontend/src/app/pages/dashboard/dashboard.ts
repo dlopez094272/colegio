@@ -5,6 +5,7 @@ import { DashboardResumen } from '../../models';
 import { DashboardService } from '../../services/dashboard.service';
 import { AuthService } from '../../services/auth';
 import { PermisosService } from '../../services/permisos.service';
+import { ConfiguracionService } from '../../services/configuracion.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -17,7 +18,22 @@ export class Dashboard implements OnInit {
   resumen: DashboardResumen = {};
   loading = true;
 
-  constructor(private svc: DashboardService, public auth: AuthService, public permisos: PermisosService) {}
+  constructor(
+    private svc: DashboardService,
+    public auth: AuthService,
+    public permisos: PermisosService,
+    public config: ConfiguracionService,
+  ) {}
+
+  get colegio() { return this.config.colegio(); }
+
+  /** Dirección y teléfonos del colegio en una línea. */
+  get contacto(): string {
+    const c = this.colegio;
+    if (!c) return '';
+    const lugar = [c.direccion, c.municipio, c.departamento].filter(Boolean).join(', ');
+    return [lugar, c.telefonos && `Tel. ${c.telefonos}`].filter(Boolean).join(' · ');
+  }
 
   ngOnInit() {
     this.svc.getResumen().subscribe({
@@ -36,10 +52,10 @@ export class Dashboard implements OnInit {
   }
 
   etiquetaTabla(t: string): string {
-    return ({ estudiantes: 'Estudiante', padres: 'Padre de familia', docentes: 'Docente', estados_civiles: 'Estado civil', formaciones_academicas: 'Formación académica', usuarios: 'Usuario' } as Record<string, string>)[t] ?? t;
+    return ({ estudiantes: 'Estudiante', padres: 'Padre de familia', docentes: 'Docente', estados_civiles: 'Estado civil', formaciones_academicas: 'Formación académica', usuarios: 'Usuario', inscripciones: 'Inscripción', pagos: 'Pago', cuotas: 'Cuota', configuracion: 'Configuración' } as Record<string, string>)[t] ?? t;
   }
 
   accionClass(a: string): string {
-    return ({ CREAR: 'success', MODIFICAR: 'info', ASIGNAR: 'success', DESASIGNAR: 'warning', ACTIVAR: 'success', INACTIVAR: 'warning', ELIMINAR: 'danger' } as Record<string, string>)[a] ?? 'secondary';
+    return ({ CREAR: 'success', MODIFICAR: 'info', ASIGNAR: 'success', DESASIGNAR: 'warning', ACTIVAR: 'success', INACTIVAR: 'warning', ELIMINAR: 'danger', ANULAR: 'danger', NOTIFICAR: 'info' } as Record<string, string>)[a] ?? 'secondary';
   }
 }

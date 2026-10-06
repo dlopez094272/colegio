@@ -1,8 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { LayoutService } from '../../services/layout.service';
 import { AuthService } from '../../services/auth';
 import { PermisosService } from '../../services/permisos.service';
+import { ConfiguracionService } from '../../services/configuracion.service';
 
 export interface NavItem {
   label: string;
@@ -24,7 +25,7 @@ export interface NavSection {
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.scss',
 })
-export class Sidebar {
+export class Sidebar implements OnInit {
   readonly nav: NavSection[] = [
     {
       section: 'COMUNIDAD EDUCATIVA',
@@ -61,6 +62,13 @@ export class Sidebar {
       ],
     },
     {
+      section: 'CONFIGURACIÓN',
+      icon: 'settings',
+      items: [
+        { label: 'Datos del colegio', icon: 'settings', route: '/configuracion/colegio', tabla: 'configuracion' },
+      ],
+    },
+    {
       section: 'SEGURIDAD',
       icon: 'lock',
       items: [
@@ -74,14 +82,20 @@ export class Sidebar {
 
   readonly cicloActual = new Date().getFullYear();
 
-  // Las secciones arrancan abiertas: son pocas y así el menú se lee de un vistazo
-  private collapsedSections = new Set<string>();
+  // Las secciones arrancan cerradas: solo se ven los padres hasta que el usuario abre uno
+  private expandedSections = new Set<string>();
 
   constructor(
     public layout: LayoutService,
     public auth: AuthService,
     public permisos: PermisosService,
+    public config: ConfiguracionService,
   ) {}
+
+  ngOnInit() {
+    // Nombre, logotipo y opciones de correo del colegio para toda la sesión
+    this.config.cargarResumen();
+  }
 
   get visibleSections(): NavSection[] {
     const sa = this.auth.isSuperAdmin();
@@ -94,11 +108,11 @@ export class Sidebar {
   }
 
   isExpanded(section: string): boolean {
-    return !this.collapsedSections.has(section);
+    return this.expandedSections.has(section);
   }
 
   toggleSection(section: string): void {
-    if (this.collapsedSections.has(section)) this.collapsedSections.delete(section);
-    else this.collapsedSections.add(section);
+    if (this.expandedSections.has(section)) this.expandedSections.delete(section);
+    else this.expandedSections.add(section);
   }
 }

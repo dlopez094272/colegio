@@ -5,7 +5,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { CargoPendiente, FORMAS_PAGO, FormaPago, PagadorBusqueda, Pago, PendientesPago } from '../../../models';
 import { PagosService } from '../../../services/pagos.service';
 import { PermisosService } from '../../../services/permisos.service';
-import { confirmSuccessChoice, promptMotivo, showError, showSuccess } from '../../../services/confirm';
+import { confirmSuccessChoice, promptCorreo, promptMotivo, showError, showSuccess } from '../../../services/confirm';
+import { ConfiguracionService } from '../../../services/configuracion.service';
 import { PaginatorComponent } from '../../../shared/paginator/paginator';
 import { RowAction, RowMenuComponent } from '../../../shared/row-menu/row-menu';
 import { BitacoraTabComponent } from '../../../shared/bitacora-tab/bitacora-tab';
@@ -34,6 +35,8 @@ interface CobroForm {
   forma_pago: FormaPago;
   referencia: string;
   observaciones: string;
+  /** Enviar el comprobante (recibo en PDF) por correo. */
+  notificar: boolean;
 }
 
 const hoyIso = () => {
@@ -89,7 +92,17 @@ export class PagosPage implements OnInit, OnDestroy {
     public permisos: PermisosService,
     private router: Router,
     private route: ActivatedRoute,
+    private config: ConfiguracionService,
   ) {}
+
+  /** Hay correo saliente configurado (Configuración › Correo saliente). */
+  get correoHabilitado() { return !!this.config.colegio()?.correo_habilitado; }
+
+  /** Correo del pagador elegido (si es un padre registrado con correo). */
+  get correoPagador(): string | null {
+    const c = this.cobro;
+    return c?.idpadres ? c.pendientes?.pagadores.find(p => p.idpadres === c.idpadres)?.email ?? null : null;
+  }
 
   get puedeA() { return this.permisos.tiene('pagos', 'A'); }
   get puedeD() { return this.permisos.tiene('pagos', 'D'); }
@@ -153,6 +166,8 @@ export class PagosPage implements OnInit, OnDestroy {
       { label: 'Detalle', icon: 'view', action: () => this.abrirDetalle(p, 'detalle') },
       { label: 'Bitácora', icon: 'bitacora', action: () => this.abrirDetalle(p, 'bitacora') },
     ];
+    if (this.puedeA && p.estado === 'Activo' && this.correoHabilitado)
+      a.push({ label: 'Enviar comprobante por correo', icon: 'mail', action: () => this.enviarComprobante(p) });
     if (this.puedeD && p.estado === 'Activo') a.push({ label: 'Anular recibo', icon: 'anular', variant: 'danger', action: () => this.anular(p) });
     return a;
   }
@@ -199,6 +214,7 @@ export class PagosPage implements OnInit, OnDestroy {
       seleccion: null, fecha_pago: hoyIso(), pendientes: null, cargando: false,
       marcados: new Set(), exonerar: new Set(),
       idpadres: null, pagador_nombre: '', pagador_nit: 'CF', forma_pago: 'Efectivo', referencia: '', observaciones: '',
+      notificar: this.correoHabilitado && !!this.config.colegio()?.notificar_pago,
     };
     if (sel) this.elegir(sel);
   }
@@ -354,14 +370,18 @@ export class PagosPage implements OnInit, OnDestroy {
       fecha_pago: c.fecha_pago, idpadres: c.idpadres, pagador_nombre: c.pagador_nombre, pagador_nit: c.pagador_nit,
       forma_pago: c.forma_pago, referencia: c.referencia, observaciones: c.observaciones,
       cargos: [...c.marcados].map(id => ({ idinscripciones_cargos: id, exonerar_mora: c.exonerar.has(id) })),
+      notificar: this.correoHabilitado && c.notificar,
     }).subscribe({
       next: async r => {
         this.saving = false;
         this.cerrarCobro();
         this.load();
+        const aviso = !r.correo ? ''
+          : r.correo.enviado ? ` Comprobante enviado a ${r.correo.destinatarios?.join(', ')}.`
+          : ` No se envió el comprobante por correo: ${r.correo.error}`;
         const ver = await confirmSuccessChoice(
           `Recibo No. ${this.numero(r.numero)}`,
-          `Pago registrado por ${this.q(r.total)}.`,
+          `Pago registrado por ${this.q(r.total)}.${aviso}`,
           'Imprimir recibo', 'Cerrar',
         );
         if (ver) this.verRecibo(r.id);
@@ -372,6 +392,20 @@ export class PagosPage implements OnInit, OnDestroy {
         // Si otra persona cobró una cuota mientras tanto, refrescar la lista
         if (e?.status === 409) this.cargarPendientes();
       },
+    });
+  }
+
+  /** (Re)envía el comprobante; vacío = al pagador o a los encargados con correo. */
+  async enviarComprobante(p: Pago) {
+    const correos = await promptCorreo(
+      `Comprobante del recibo No. ${this.numero(p.numero)}`,
+      'Deje el campo vacío para enviarlo al correo del padre que pagó (o de los encargados que firmaron la inscripción), o escriba otro(s) correo(s) separados por coma.',
+      '', 'Enviar', true,
+    );
+    if (correos === null) return;
+    this.svc.notificar(p.idpagos, correos || undefined).subscribe({
+      next: r => showSuccess(`Comprobante enviado a ${r.destinatarios.join(', ')}`),
+      error: e => showError(e?.error?.message || 'No se pudo enviar el comprobante'),
     });
   }
 }

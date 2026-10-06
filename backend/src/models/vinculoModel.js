@@ -25,7 +25,7 @@ const VinculoModel = {
     const [rows] = await conn.query(
       `SELECT p.idpadres AS id, p.idpadres, ${sqlNombre('p')} AS nombre_completo,
               p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido,
-              p.dpi, p.nit, p.telefono_celular, p.telefono_casa, p.activo, v.parentesco
+              p.dpi, p.nit, p.email, p.telefono_celular, p.telefono_casa, p.activo, v.parentesco
          FROM estudiantes_padres v
          JOIN padres p ON p.idpadres = v.idpadres
         WHERE v.idestudiantes = ?

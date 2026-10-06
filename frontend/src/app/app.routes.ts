@@ -26,6 +26,8 @@ export const routes: Routes = [
       { path: 'catalogos/estados-civiles', canActivate: [permisoGuard('estados_civiles')], loadComponent: () => import('./pages/catalogos/estados-civiles/estados-civiles').then(m => m.EstadosCivilesPage) },
       { path: 'catalogos/formaciones-academicas', canActivate: [permisoGuard('formaciones_academicas')], loadComponent: () => import('./pages/catalogos/formaciones-academicas/formaciones-academicas').then(m => m.FormacionesAcademicasPage) },
       { path: 'catalogos/categorias-archivos', canActivate: [permisoGuard('categorias_archivos')], loadComponent: () => import('./pages/catalogos/categorias-archivos/categorias-archivos').then(m => m.CategoriasArchivosPage) },
+      // Configuración
+      { path: 'configuracion/colegio', canActivate: [permisoGuard('configuracion')], loadComponent: () => import('./pages/configuracion/colegio/colegio').then(m => m.ConfiguracionColegioPage) },
       // Seguridad
       { path: 'seguridad/usuarios', canActivate: [permisoGuard('usuarios')], loadComponent: () => import('./pages/seguridad/usuarios/usuarios').then(m => m.Usuarios) },
       { path: 'seguridad/grupos',   canActivate: [superAdminGuard],          loadComponent: () => import('./pages/seguridad/seg-usuarios/seg-usuarios').then(m => m.SegUsuarios) },

@@ -5,9 +5,10 @@ const { calcularMora, hoy } = require('../utils/cargos');
 /**
  * Estado de cuenta de una inscripción — FORMATO ESTÁNDAR PROVISIONAL.
  * Los cargos pendientes muestran la mora calculada a la fecha de emisión.
+ * @param {object} [colegio] - ConfiguracionModel.datosColegio()
  */
-function generarEstadoCuenta(insc, cargos) {
-  const doc = B.crearDoc(`Estado de cuenta ${insc.codigo}`);
+function generarEstadoCuenta(insc, cargos, colegio = null) {
+  const doc = B.crearDoc(`Estado de cuenta ${insc.codigo}`, colegio);
   const fechaCorte = hoy();
   B.encabezado(doc, { titulo: 'Estado de cuenta', numero: insc.codigo, subtitulo: `Al ${B.fechaLarga(fechaCorte)}` });
 

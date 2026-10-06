@@ -8,13 +8,15 @@ export function personaFormVacio(): PersonaForm {
   return {
     primer_nombre: '', segundo_nombre: '', primer_apellido: '', segundo_apellido: '', apellido_casada: '',
     fecha_nacimiento: '', lugar_nacimiento: '', dpi: '', direccion: '', telefono_casa: '', telefono_celular: '',
-    idestados_civiles: null, nit: '', pasaporte: '',
+    idestados_civiles: null, nacionalidad: 'Guatemalteca', nit: '', pasaporte: '', email: '',
   };
 }
 
 /**
  * Campos de datos personales comunes a Padres de familia, Estudiantes y
- * Personal docente. Padres y docentes muestran además NIT, pasaporte y estado civil.
+ * Personal docente. Padres y docentes muestran además NIT, pasaporte, estado civil
+ * y nacionalidad; el padre, su correo (aviso de inscripción y comprobantes de pago;
+ * el docente tiene su propio campo de correo en su página).
  * Se usa tanto en el formulario principal como en los sub-formularios de
  * "nuevo padre / nuevo estudiante" dentro de las asignaciones.
  */
@@ -43,6 +45,8 @@ export class PersonaCamposComponent {
 
   // Docentes llevan los mismos datos que el padre de familia
   get esPadre(): boolean { return this.tipo !== 'estudiante'; }
+
+  readonly nacionalidades = ['Guatemalteca', 'Salvadoreña', 'Hondureña', 'Mexicana', 'Nicaragüense', 'Costarricense', 'Beliceña', 'Estadounidense'];
 
   esHeredado(campo: string): boolean {
     return !!this.heredados?.has(campo);

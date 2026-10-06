@@ -6,9 +6,10 @@ const numeroRecibo = n => String(n).padStart(6, '0');
  * Recibo de pago — FORMATO ESTÁNDAR PROVISIONAL.
  * @param {object} pago    - PagoModel.findById
  * @param {object[]} detalle - PagoModel.detalle
+ * @param {object} [colegio] - ConfiguracionModel.datosColegio()
  */
-function generarRecibo(pago, detalle) {
-  const doc = B.crearDoc(`Recibo ${numeroRecibo(pago.numero)}`);
+function generarRecibo(pago, detalle, colegio = null) {
+  const doc = B.crearDoc(`Recibo ${numeroRecibo(pago.numero)}`, colegio);
   B.encabezado(doc, { titulo: 'Recibo de pago', numero: `No. ${numeroRecibo(pago.numero)}`, subtitulo: `Fecha: ${B.fecha(pago.fecha_pago)}` });
 
   B.campos(doc, [

@@ -20,6 +20,7 @@ router.get('/:id',         cp('inscripciones', 'S'), ctrl.getById);
 router.post('/',           cp('inscripciones', 'A'), ctrl.create);
 router.put('/:id',         cp('inscripciones', 'E'), ctrl.update);
 router.post('/:id/anular', cp('inscripciones', 'D'), ctrl.anular);
+router.post('/:id/notificar', cpAny([['inscripciones', 'A'], ['inscripciones', 'E']]), ctrl.notificar);
 
 // Estado de cuenta: lo consulta secretaría (inscripciones) y caja (pagos)
 const verCuenta = cpAny([['inscripciones', 'S'], ['pagos', 'S']]);

@@ -18,6 +18,7 @@ export class Navbar {
     '/comunidad/estudiantes':     'Estudiantes',
     '/comunidad/padres':          'Padres de familia',
     '/catalogos/estados-civiles': 'Catálogo de estados civiles',
+    '/configuracion/colegio':     'Datos del colegio',
     '/seguridad/usuarios':        'Usuarios del sistema',
     '/seguridad/grupos':          'Usuarios y grupos',
     '/seguridad/permisos':        'Permisos',
