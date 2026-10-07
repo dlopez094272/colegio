@@ -8,10 +8,14 @@ const EstudianteModel = crearModeloPersona({
   otraTabla: 'padres',
   otroPk:    'idpadres',
   campos:    CAMPOS_ESTUDIANTE,
+  buscables: ['codigo_mineduc'],
   selectExtra: `, t.foto,
     (SELECT COUNT(*) FROM estudiantes_archivos ea WHERE ea.idestudiantes = t.idestudiantes) AS total_archivos`,
-  sortExtra: { lugar_nacimiento: 't.lugar_nacimiento', total_archivos: 'total_archivos' },
-  filterExtra: { lugar_nacimiento: { column: 't.lugar_nacimiento', type: 'text' } },
+  sortExtra: { lugar_nacimiento: 't.lugar_nacimiento', codigo_mineduc: 't.codigo_mineduc', total_archivos: 'total_archivos' },
+  filterExtra: {
+    lugar_nacimiento: { column: 't.lugar_nacimiento', type: 'text' },
+    codigo_mineduc:   { column: 't.codigo_mineduc',   type: 'text' },
+  },
 });
 
 EstudianteModel.setFoto = async function setFoto(id, foto) {

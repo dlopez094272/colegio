@@ -1,15 +1,16 @@
 // Utilidades compartidas por Padres de familia, Estudiantes y Personal docente:
-// todos guardan los mismos datos personales (padres y docentes agregan NIT,
-// pasaporte, estado civil, nacionalidad y correo; los docentes además tipo y
-// fecha de ingreso).
+// todos guardan los mismos datos personales (padres y docentes agregan apellido
+// de casada, NIT, pasaporte, estado civil, nacionalidad y correo; los docentes
+// además tipo y fecha de ingreso; los estudiantes, lugar de nacimiento y código
+// MINEDUC, y su CUI es obligatorio).
 
 const CAMPOS_BASE = [
-  'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido', 'apellido_casada',
+  'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido',
   'fecha_nacimiento', 'dpi', 'direccion', 'telefono_casa', 'telefono_celular',
 ];
 
-const CAMPOS_PADRE      = [...CAMPOS_BASE, 'idestados_civiles', 'nacionalidad', 'nit', 'pasaporte', 'email'];
-const CAMPOS_ESTUDIANTE = [...CAMPOS_BASE, 'lugar_nacimiento'];
+const CAMPOS_PADRE      = [...CAMPOS_BASE, 'apellido_casada', 'idestados_civiles', 'nacionalidad', 'nit', 'pasaporte', 'email'];
+const CAMPOS_ESTUDIANTE = [...CAMPOS_BASE, 'lugar_nacimiento', 'codigo_mineduc'];
 const CAMPOS_DOCENTE    = [...CAMPOS_PADRE, 'tipo_personal', 'fecha_ingreso'];
 
 const TIPOS_PERSONAL = ['Maestro', 'Coordinador'];
@@ -42,16 +43,22 @@ function normalizar(body, campos) {
   if (data.nit) data.nit = data.nit.toUpperCase().replace(/\s/g, '');
   if (data.dpi) data.dpi = data.dpi.replace(/[\s-]/g, '');
   if (data.pasaporte) data.pasaporte = data.pasaporte.toUpperCase();
+  if (data.codigo_mineduc) data.codigo_mineduc = data.codigo_mineduc.toUpperCase().replace(/\s/g, '');
   if (data.email) data.email = data.email.toLowerCase();
   if ('tipo_personal' in data)
     data.tipo_personal = TIPOS_PERSONAL.find(t => t.toLowerCase() === (data.tipo_personal || '').toLowerCase()) || null;
   return data;
 }
 
-/** Devuelve el primer error de validación encontrado, o null si todo está bien. */
-function validar(data, etiqueta = 'registro') {
+/**
+ * Devuelve el primer error de validación encontrado, o null si todo está bien.
+ * @param {object} [opts]
+ * @param {boolean} [opts.dpiRequerido] - el DPI/CUI es obligatorio (estudiantes)
+ */
+function validar(data, etiqueta = 'registro', { dpiRequerido = false } = {}) {
   if (!data.primer_nombre)   return `El primer nombre del ${etiqueta} es requerido`;
   if (!data.primer_apellido) return `El primer apellido del ${etiqueta} es requerido`;
+  if (dpiRequerido && !data.dpi) return `El CUI del ${etiqueta} es requerido`;
 
   if (data.fecha_nacimiento) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(data.fecha_nacimiento) || isNaN(Date.parse(data.fecha_nacimiento)))
@@ -69,6 +76,8 @@ function validar(data, etiqueta = 'registro') {
     return `El DPI/CUI del ${etiqueta} debe tener 13 dígitos`;
   if (data.nit && data.nit !== 'CF' && !/^\d{1,12}-?[\dK]$/.test(data.nit))
     return `El NIT del ${etiqueta} no tiene un formato válido`;
+  if (data.codigo_mineduc && !/^[A-Z0-9-]{1,20}$/.test(data.codigo_mineduc))
+    return `El código MINEDUC del ${etiqueta} solo admite letras y números (máx. 20)`;
   for (const tel of ['telefono_casa', 'telefono_celular']) {
     if (data[tel] && !/^[\d+\-\s()]{7,20}$/.test(data[tel]))
       return `El ${tel === 'telefono_casa' ? 'teléfono de casa' : 'teléfono celular'} del ${etiqueta} no es válido`;

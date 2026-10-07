@@ -1,6 +1,8 @@
 const { pool } = require('../config/database');
 const CuotaModel = require('../models/cuotaModel');
+const InscripcionModel = require('../models/inscripcionModel');
 const { registrarBitacora } = require('../utils/bitacora');
+const { planRecalculo } = require('../utils/cargos');
 
 const PERIODICIDADES = ['Unica', 'Mensual'];
 const MORA_TIPOS = ['Ninguna', 'Monto', 'Porcentaje'];
@@ -21,6 +23,23 @@ async function enTransaccion(fn) {
   } finally {
     conn.release();
   }
+}
+
+const MOTIVO_FUERA_DE_RANGO = 'Mes fuera del período de la cuota (configuración modificada)';
+
+/**
+ * Plan de recálculo de los cobros pendientes de una configuración en todas las
+ * inscripciones activas: los planes por inscripción (solo las que cambian) y
+ * los totales que se muestran antes de confirmar.
+ */
+async function planearRecalculo(cfg, conn = pool, bloquear = false) {
+  const grupos = await InscripcionModel.cargosPorConfig(cfg.idcuotas_ciclos, conn, bloquear);
+  const planes = grupos
+    .map(g => ({ ...g, plan: planRecalculo(g.cargos, cfg) }))
+    .filter(g => g.plan.actualizar.length || g.plan.anular.length || g.plan.agregar.length);
+  const total = k => planes.reduce((n, g) => n + g.plan[k].length, 0);
+  const resumen = { inscripciones: planes.length, actualizar: total('actualizar'), anular: total('anular'), agregar: total('agregar') };
+  return { planes, resumen };
 }
 
 const nombreGrado = g => [g.nivel, g.carrera, g.grado].filter(Boolean).join(' › ');
@@ -95,6 +114,9 @@ function leerConfig(body, periodicidad) {
   const dia_limite = body.dia_limite === undefined || body.dia_limite === null || body.dia_limite === '' ? 5 : Number(body.dia_limite);
   if (!Number.isInteger(dia_limite) || dia_limite < 1 || dia_limite > 31) throw fail(400, 'El día límite debe estar entre 1 y 31');
 
+  // Mes vencido: el cobro de cada mes vence el día límite del mes siguiente.
+  const mes_vencido = periodicidad === 'Mensual' && body.mes_vencido ? 1 : 0;
+
   const mora_tipo = body.mora_tipo || 'Ninguna';
   if (!MORA_TIPOS.includes(mora_tipo)) throw fail(400, 'Tipo de mora no válido');
   let mora_valor = 0;
@@ -103,7 +125,7 @@ function leerConfig(body, periodicidad) {
     if (!mora_valor) throw fail(400, 'Indique el valor de la mora');
     if (mora_tipo === 'Porcentaje' && mora_valor > 100) throw fail(400, 'El porcentaje de mora no puede ser mayor a 100');
   }
-  return { fecha_inicio, fecha_fin, dia_limite, mora_tipo, mora_valor };
+  return { fecha_inicio, fecha_fin, dia_limite, mes_vencido, mora_tipo, mora_valor };
 }
 
 /** Redondeo al copiar montos: 0 = centavos, 1 = quetzal entero, 5 / 10 = múltiplo. */
@@ -190,7 +212,7 @@ const ctrl = {
     } catch (err) { next(err); }
   },
 
-  // POST /api/cuotas/ciclos/:ciclo/cuotas   { idcuotas, fecha_inicio, fecha_fin, dia_limite, mora_tipo, mora_valor }
+  // POST /api/cuotas/ciclos/:ciclo/cuotas   { idcuotas, fecha_inicio, fecha_fin, dia_limite, mes_vencido, mora_tipo, mora_valor }
   async agregarAlCiclo(req, res, next) {
     try {
       const ciclo = leerCiclo(req.params.ciclo);
@@ -209,21 +231,68 @@ const ctrl = {
     } catch (err) { next(err); }
   },
 
-  // PUT /api/cuotas/config/:id
+  // POST /api/cuotas/config/:id/impacto   { ...config }
+  // Cuántos cobros pendientes de estudiantes cambiarían si se guarda esta
+  // configuración y se elige actualizarlos. No modifica nada.
+  async impactoConfig(req, res, next) {
+    try {
+      const antes = await CuotaModel.findConfig(req.params.id);
+      if (!antes) return res.status(404).json({ message: 'Configuración no encontrada' });
+      const config = leerConfig(req.body, antes.periodicidad);
+      const { resumen } = await planearRecalculo({ ...antes, ...config });
+      res.json({ success: true, data: resumen });
+    } catch (err) { next(err); }
+  },
+
+  // PUT /api/cuotas/config/:id   { ...config, actualizar_pendientes }
+  // Sin actualizar_pendientes el cambio solo aplica a inscripciones nuevas (los
+  // cobros ya generados son copia). Con él también se recalculan los cobros
+  // pendientes de las inscripciones activas; pagados y anulados no cambian.
   async updateConfig(req, res, next) {
     try {
-      const { id } = req.params;
+      const id = Number(req.params.id);
       const antes = await CuotaModel.findConfig(id);
       if (!antes) return res.status(404).json({ message: 'Configuración no encontrada' });
       const config = leerConfig(req.body, antes.periodicidad);
+      const actualizar = req.body.actualizar_pendientes === true || req.body.actualizar_pendientes === 1;
 
-      await CuotaModel.updateConfig(id, config);
-      await registrarBitacora({
-        tabla: 'cuotas_ciclos', idregistro: Number(id), accion: 'MODIFICAR',
-        descripcion: `Configuración modificada: ${antes.cuota} ${antes.ciclo}`,
-        valoresAntes: numerico(antes), valoresDespues: config, req,
+      const { planes, resumen } = await enTransaccion(async conn => {
+        await CuotaModel.updateConfig(id, config, conn);
+        if (!actualizar) return { planes: [], resumen: null };
+        const r = await planearRecalculo({ ...antes, ...config }, conn, true);
+        for (const { idinscripciones, plan } of r.planes) {
+          for (const { cargo, nuevo } of plan.actualizar) await InscripcionModel.recalcularCargo(conn, cargo.idinscripciones_cargos, nuevo);
+          await InscripcionModel.anularCargos(conn, plan.anular.map(a => a.cargo.idinscripciones_cargos), MOTIVO_FUERA_DE_RANGO);
+          await InscripcionModel.insertarCargos(conn, idinscripciones, plan.agregar);
+        }
+        return r;
       });
-      res.json({ success: true });
+
+      const detalle = resumen
+        ? `. Cobros pendientes recalculados en ${resumen.inscripciones} inscripción(es): ${resumen.actualizar} actualizado(s), ${resumen.anular} anulado(s), ${resumen.agregar} agregado(s)`
+        : '';
+      await registrarBitacora({
+        tabla: 'cuotas_ciclos', idregistro: id, accion: 'MODIFICAR',
+        descripcion: `Configuración modificada: ${antes.cuota} ${antes.ciclo}${detalle}`,
+        valoresAntes: numerico(antes), valoresDespues: { ...config, recalculo: resumen }, req,
+      });
+      for (const { idinscripciones, codigo, plan } of planes) {
+        await registrarBitacora({
+          tabla: 'inscripciones', idregistro: idinscripciones, accion: 'MODIFICAR',
+          descripcion: `Cobros de ${antes.cuota} recalculados en ${codigo} por cambio en la configuración de la cuota`,
+          valoresAntes: {
+            actualizados: plan.actualizar.map(({ cargo: c }) => ({ cargo: c.concepto, vence: c.fecha_vencimiento, mora_tipo: c.mora_tipo, mora_valor: c.mora_valor })),
+            anulados: plan.anular.map(({ cargo: c }) => ({ cargo: c.concepto, estado: 'Pendiente' })),
+          },
+          valoresDespues: {
+            actualizados: plan.actualizar.map(({ cargo: c, nuevo: n }) => ({ cargo: c.concepto, vence: n.fecha_vencimiento, mora_tipo: n.mora_tipo, mora_valor: n.mora_valor })),
+            anulados: plan.anular.map(({ cargo: c }) => ({ cargo: c.concepto, estado: 'Anulado', motivo: MOTIVO_FUERA_DE_RANGO })),
+            agregados: plan.agregar.map(n => ({ cargo: n.concepto, vence: n.fecha_vencimiento, monto: n.monto })),
+          },
+          req,
+        });
+      }
+      res.json({ success: true, recalculo: resumen });
     } catch (err) { next(err); }
   },
 
@@ -350,7 +419,7 @@ const ctrl = {
           const data = {
             idcuotas: c.idcuotas, ciclo: destino,
             fecha_inicio: sumarAnios(c.fecha_inicio, anios), fecha_fin: sumarAnios(c.fecha_fin, anios),
-            dia_limite: c.dia_limite, mora_tipo: c.mora_tipo, mora_valor: Number(c.mora_valor),
+            dia_limite: c.dia_limite, mes_vencido: c.mes_vencido, mora_tipo: c.mora_tipo, mora_valor: Number(c.mora_valor),
           };
           const id = await CuotaModel.createConfig(data, conn);
           const filas = montosOrigen

@@ -124,7 +124,8 @@ export interface PersonaDatos {
   apellido_casada: string;
   fecha_nacimiento: string;
   lugar_nacimiento?: string; // solo estudiantes
-  dpi: string;
+  dpi: string;               // CUI en estudiantes (obligatorio)
+  codigo_mineduc?: string;   // solo estudiantes (opcional)
   direccion: string;
   telefono_casa: string;
   telefono_celular: string;
@@ -150,6 +151,7 @@ export interface PersonaRegistro {
   lugar_nacimiento?: string | null;
   foto?: string | null;
   dpi: string | null;
+  codigo_mineduc?: string | null; // solo estudiantes
   direccion: string | null;
   telefono_casa: string | null;
   telefono_celular: string | null;
@@ -301,6 +303,7 @@ export interface CuotaCiclo {
   fecha_inicio: string;
   fecha_fin: string;
   dia_limite: number;
+  mes_vencido: number;
   mora_tipo: MoraTipo;
   mora_valor: number;
   cuota: string;
@@ -396,6 +399,7 @@ export interface CuotaGrado {
   fecha_inicio: string;
   fecha_fin: string;
   dia_limite: number;
+  mes_vencido: number;
   mora_tipo: MoraTipo;
   mora_valor: number;
   monto: number;

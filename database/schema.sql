@@ -134,7 +134,8 @@ CREATE TABLE IF NOT EXISTS estudiantes (
   apellido_casada     VARCHAR(60)  NULL,
   fecha_nacimiento    DATE         NULL,
   lugar_nacimiento    VARCHAR(150) NULL,
-  dpi                 VARCHAR(20)  NULL COMMENT 'CUI / DPI',
+  dpi                 VARCHAR(20)  NULL COMMENT 'CUI (obligatorio, validado en la aplicación)',
+  codigo_mineduc      VARCHAR(20)  NULL COMMENT 'Código personal del estudiante en MINEDUC (opcional)',
   direccion           VARCHAR(300) NULL,
   telefono_casa       VARCHAR(20)  NULL,
   telefono_celular    VARCHAR(20)  NULL,
@@ -145,6 +146,7 @@ CREATE TABLE IF NOT EXISTS estudiantes (
   fecha_modificacion  DATETIME     NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (idestudiantes),
   KEY idx_estudiantes_dpi (dpi),
+  KEY idx_estudiantes_mineduc (codigo_mineduc),
   KEY idx_estudiantes_apellidos (primer_apellido, segundo_apellido)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -331,6 +333,7 @@ CREATE TABLE IF NOT EXISTS cuotas_ciclos (
   fecha_inicio    DATE          NOT NULL,
   fecha_fin       DATE          NOT NULL,
   dia_limite      TINYINT       NOT NULL DEFAULT 5 COMMENT 'Mensual: día del mes en que vence cada cobro',
+  mes_vencido     TINYINT(1)    NOT NULL DEFAULT 0 COMMENT 'Mensual: 1 = cada cobro vence el dia_limite del mes siguiente',
   mora_tipo       VARCHAR(12)   NOT NULL DEFAULT 'Ninguna' COMMENT 'Ninguna | Monto | Porcentaje',
   mora_valor      DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT 'Q fijos o % del cobro vencido',
   PRIMARY KEY (idcuotas_ciclos),

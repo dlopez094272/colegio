@@ -193,7 +193,7 @@ const InscripcionModel = {
       `SELECT cc.idcuotas_ciclos, cc.idcuotas, cc.ciclo,
               DATE_FORMAT(cc.fecha_inicio, '%Y-%m-%d') AS fecha_inicio,
               DATE_FORMAT(cc.fecha_fin, '%Y-%m-%d') AS fecha_fin,
-              cc.dia_limite, cc.mora_tipo, cc.mora_valor,
+              cc.dia_limite, cc.mes_vencido, cc.mora_tipo, cc.mora_valor,
               cu.cuota, cu.periodicidad, cu.obligatoria, cg.monto
          FROM cuotas_ciclos cc
          JOIN cuotas cu        ON cu.idcuotas = cc.idcuotas AND cu.activo = 1
@@ -234,6 +234,48 @@ const InscripcionModel = {
       [id]
     );
     return rows[0] || null;
+  },
+
+  /**
+   * Cargos de una configuración de cuota en las inscripciones activas, agrupados
+   * por inscripción. Con `bloquear` toma las filas para el recálculo (FOR UPDATE).
+   */
+  async cargosPorConfig(idcuotas_ciclos, conn = pool, bloquear = false) {
+    const [rows] = await conn.query(
+      `SELECT ic.idinscripciones_cargos, ic.idinscripciones, ic.numero_cobro, ic.concepto,
+              DATE_FORMAT(ic.fecha_vencimiento, '%Y-%m-%d') AS fecha_vencimiento,
+              ic.monto, ic.mora_tipo, ic.mora_valor, ic.estado, i.codigo
+         FROM inscripciones_cargos ic
+         JOIN inscripciones i ON i.idinscripciones = ic.idinscripciones
+        WHERE ic.idcuotas_ciclos = ? AND i.estado = 'Activa'
+        ORDER BY ic.idinscripciones, ic.numero_cobro
+        ${bloquear ? 'FOR UPDATE' : ''}`,
+      [idcuotas_ciclos]
+    );
+    const grupos = new Map();
+    for (const r of rows) {
+      if (!grupos.has(r.idinscripciones)) grupos.set(r.idinscripciones, { idinscripciones: r.idinscripciones, codigo: r.codigo, cargos: [] });
+      grupos.get(r.idinscripciones).cargos.push({ ...r, monto: Number(r.monto), mora_valor: Number(r.mora_valor) });
+    }
+    return [...grupos.values()];
+  },
+
+  /** Cambia vencimiento y mora de un cobro que sigue pendiente. */
+  async recalcularCargo(conn, id, { fecha_vencimiento, mora_tipo, mora_valor }) {
+    await conn.query(
+      `UPDATE inscripciones_cargos SET fecha_vencimiento = ?, mora_tipo = ?, mora_valor = ?
+        WHERE idinscripciones_cargos = ? AND estado = 'Pendiente'`,
+      [fecha_vencimiento, mora_tipo, mora_valor, id]
+    );
+  },
+
+  async anularCargos(conn, ids, motivo) {
+    if (!ids.length) return;
+    await conn.query(
+      `UPDATE inscripciones_cargos SET estado = 'Anulado', motivo_anulacion = ?
+        WHERE idinscripciones_cargos IN (?) AND estado = 'Pendiente'`,
+      [motivo, ids]
+    );
   },
 
   async insertarCargos(conn, idinscripciones, cargos) {

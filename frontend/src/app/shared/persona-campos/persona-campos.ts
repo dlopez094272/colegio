@@ -7,15 +7,16 @@ export type PersonaForm = Required<Omit<PersonaDatos, 'idestados_civiles'>> & { 
 export function personaFormVacio(): PersonaForm {
   return {
     primer_nombre: '', segundo_nombre: '', primer_apellido: '', segundo_apellido: '', apellido_casada: '',
-    fecha_nacimiento: '', lugar_nacimiento: '', dpi: '', direccion: '', telefono_casa: '', telefono_celular: '',
+    fecha_nacimiento: '', lugar_nacimiento: '', dpi: '', codigo_mineduc: '', direccion: '', telefono_casa: '', telefono_celular: '',
     idestados_civiles: null, nacionalidad: 'Guatemalteca', nit: '', pasaporte: '', email: '',
   };
 }
 
 /**
  * Campos de datos personales comunes a Padres de familia, Estudiantes y
- * Personal docente. Padres y docentes muestran además NIT, pasaporte, estado civil
- * y nacionalidad; el padre, su correo (aviso de inscripción y comprobantes de pago;
+ * Personal docente. Padres y docentes muestran además apellido de casada, NIT,
+ * pasaporte, estado civil y nacionalidad; el estudiante, CUI obligatorio y
+ * código MINEDUC; el padre, su correo (aviso de inscripción y comprobantes de pago;
  * el docente tiene su propio campo de correo en su página).
  * Se usa tanto en el formulario principal como en los sub-formularios de
  * "nuevo padre / nuevo estudiante" dentro de las asignaciones.
@@ -59,5 +60,9 @@ export class PersonaCamposComponent {
   /** Deja solo dígitos en el DPI (13 dígitos, CUI). */
   limpiarDpi() {
     this.model.dpi = (this.model.dpi || '').replace(/\D/g, '').substring(0, 13);
+  }
+
+  limpiarMineduc() {
+    this.model.codigo_mineduc = (this.model.codigo_mineduc || '').toUpperCase().replace(/\s/g, '');
   }
 }

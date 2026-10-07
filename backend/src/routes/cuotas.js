@@ -11,6 +11,7 @@ router.post('/ciclos/copiar',         cp('cuotas', 'A'), ctrl.copiarCiclo);
 router.get('/ciclos/:ciclo',          cp('cuotas', 'S'), ctrl.ciclo);
 router.post('/ciclos/:ciclo/cuotas',  cp('cuotas', 'A'), ctrl.agregarAlCiclo);
 router.put('/ciclos/:ciclo/montos',   cp('cuotas', 'E'), ctrl.guardarMontos);
+router.post('/config/:id/impacto',    cp('cuotas', 'E'), ctrl.impactoConfig);
 router.put('/config/:id',             cp('cuotas', 'E'), ctrl.updateConfig);
 router.delete('/config/:id',          cp('cuotas', 'D'), ctrl.deleteConfig);
 

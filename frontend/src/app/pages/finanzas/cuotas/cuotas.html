@@ -290,6 +290,13 @@
               <input class="col-input" type="number" min="1" max="31" name="dia_limite" [(ngModel)]="f.dia_limite"/>
               <span class="field-hint">Cada mes vence este día (si el mes es más corto, el último día).</span>
             </div>
+            <label class="switch-wrap">
+              <input type="checkbox" name="mes_vencido" [checked]="f.mes_vencido === 1" (change)="f.mes_vencido = $any($event.target).checked ? 1 : 0"/>
+              <span class="switch-slider"></span>
+              <span class="switch-label">Mes vencido
+                <span class="switch-desc">{{ f.mes_vencido ? 'Cada mes vence el día límite del mes siguiente (enero vence en febrero)' : 'Cada mes vence el día límite del mismo mes' }}</span>
+              </span>
+            </label>
           }
 
           <div class="field">

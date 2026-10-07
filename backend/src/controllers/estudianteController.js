@@ -14,6 +14,7 @@ module.exports = crearControladorPersona({
   ModeloOtro:   PadreModel,
   campos:       CAMPOS_ESTUDIANTE,
   camposOtro:   CAMPOS_PADRE,
+  dpiRequerido: true,
   getVinculos:  (idestudiantes, conn) => VinculoModel.getPadresDeEstudiante(idestudiantes, conn),
   vincular:     (conn, idestudiantes, idpadres, parentesco) => VinculoModel.vincular(conn, idestudiantes, idpadres, parentesco),
   desvincular:  (conn, idestudiantes, idpadres) => VinculoModel.desvincular(conn, idestudiantes, idpadres),

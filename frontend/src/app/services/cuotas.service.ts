@@ -6,7 +6,15 @@ import { environment } from '../../environments/environment';
 
 const BASE = `${environment.apiUrl}/api/cuotas`;
 
-export type CuotaConfigPayload = Pick<CuotaCiclo, 'fecha_inicio' | 'fecha_fin' | 'dia_limite' | 'mora_tipo' | 'mora_valor'>;
+export type CuotaConfigPayload = Pick<CuotaCiclo, 'fecha_inicio' | 'fecha_fin' | 'dia_limite' | 'mes_vencido' | 'mora_tipo' | 'mora_valor'>;
+
+/** Cobros pendientes de estudiantes que cambiarían al recalcular con una configuración. */
+export interface ImpactoConfig {
+  inscripciones: number;
+  actualizar: number;
+  anular: number;
+  agregar: number;
+}
 
 /** Alta / edición del catálogo (orden vacío = al final). */
 export type CuotaPayload = Partial<Omit<Cuota, 'orden'>> & { orden?: number | null };
@@ -52,7 +60,13 @@ export class CuotasService {
   agregarAlCiclo(ciclo: number, data: CuotaConfigPayload & { idcuotas: number }) {
     return this.http.post<ApiResponse<any> & { id: number }>(`${BASE}/ciclos/${ciclo}/cuotas`, data);
   }
-  updateConfig(id: number, data: CuotaConfigPayload) { return this.http.put<ApiResponse<any>>(`${BASE}/config/${id}`, data); }
+  /** Sin actualizar_pendientes el cambio solo aplica a inscripciones nuevas. */
+  updateConfig(id: number, data: CuotaConfigPayload & { actualizar_pendientes?: boolean }) {
+    return this.http.put<ApiResponse<any> & { recalculo: ImpactoConfig | null }>(`${BASE}/config/${id}`, data);
+  }
+  impactoConfig(id: number, data: CuotaConfigPayload) {
+    return this.http.post<ApiResponse<ImpactoConfig>>(`${BASE}/config/${id}/impacto`, data);
+  }
   deleteConfig(id: number) { return this.http.delete<ApiResponse<any>>(`${BASE}/config/${id}`); }
   guardarMontos(ciclo: number, cambios: CambioMonto[]) {
     return this.http.put<ApiResponse<any> & { cambios: number }>(`${BASE}/ciclos/${ciclo}/montos`, { cambios });

@@ -2,9 +2,9 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CicloCuotas, Cuota, CuotaCiclo, GradoCuota, MoraTipo, Periodicidad } from '../../../models';
-import { CambioMonto, CopiarCicloPayload, CuotasService } from '../../../services/cuotas.service';
+import { CambioMonto, CopiarCicloPayload, CuotaConfigPayload, CuotasService, ImpactoConfig } from '../../../services/cuotas.service';
 import { PermisosService } from '../../../services/permisos.service';
-import { confirmDialog, showError, showSuccess, showWarning } from '../../../services/confirm';
+import { confirmDialog, confirmDosOpciones, showError, showSuccess, showWarning } from '../../../services/confirm';
 import { RowAction, RowMenuComponent } from '../../../shared/row-menu/row-menu';
 import { BitacoraTabComponent } from '../../../shared/bitacora-tab/bitacora-tab';
 import { readStateFromUrl, syncStateToUrl } from '../../../shared/utils/url-state.util';
@@ -26,6 +26,7 @@ interface ConfigForm {
   fecha_inicio: string;
   fecha_fin: string;
   dia_limite: number;
+  mes_vencido: number;
   mora_tipo: MoraTipo;
   mora_valor: number | null;
 }
@@ -222,7 +223,8 @@ export class CuotasPage implements OnInit {
   }
 
   textoVence(c: CuotaCiclo): string {
-    return c.periodicidad === 'Mensual' ? `Día ${c.dia_limite} de cada mes` : this.fecha(c.fecha_fin);
+    if (c.periodicidad !== 'Mensual') return this.fecha(c.fecha_fin);
+    return c.mes_vencido ? `Día ${c.dia_limite} del mes siguiente (mes vencido)` : `Día ${c.dia_limite} de cada mes`;
   }
 
   // ═════════════ Pestaña: cuotas del ciclo ═════════════
@@ -245,7 +247,7 @@ export class CuotasPage implements OnInit {
     this.error = '';
     this.configForm = {
       modo: 'nuevo', cfg: null, idcuotas: null,
-      fecha_inicio: '', fecha_fin: '', dia_limite: 5, mora_tipo: 'Ninguna', mora_valor: null,
+      fecha_inicio: '', fecha_fin: '', dia_limite: 5, mes_vencido: 0, mora_tipo: 'Ninguna', mora_valor: null,
     };
     const disp = this.cuotasDisponibles;
     if (disp.length === 1) this.elegirCuota(disp[0].idcuotas);
@@ -255,7 +257,7 @@ export class CuotasPage implements OnInit {
     this.error = '';
     this.configForm = {
       modo: 'editar', cfg: c, idcuotas: c.idcuotas,
-      fecha_inicio: c.fecha_inicio, fecha_fin: c.fecha_fin, dia_limite: c.dia_limite,
+      fecha_inicio: c.fecha_inicio, fecha_fin: c.fecha_fin, dia_limite: c.dia_limite, mes_vencido: c.mes_vencido ? 1 : 0,
       mora_tipo: c.mora_tipo, mora_valor: c.mora_tipo === 'Ninguna' ? null : c.mora_valor,
     };
   }
@@ -283,10 +285,18 @@ export class CuotasPage implements OnInit {
     const p = this.periodicidadForm;
     if (!f || !p || !f.fecha_inicio || !f.fecha_fin || f.fecha_fin < f.fecha_inicio) return '';
     let txt = p === 'Mensual'
-      ? `${this.cobros({ periodicidad: p, ...f })} cobros mensuales (${this.rangoMeses(f)}), cada uno vence el día ${f.dia_limite || '?'} del mes.`
+      ? `${this.cobros({ periodicidad: p, ...f })} cobros mensuales (${this.rangoMeses(f)}), cada uno vence el día ${f.dia_limite || '?'} ${f.mes_vencido ? `del mes siguiente (mes vencido: ${this.ejemploMesVencido(f)})` : 'del mes'}.`
       : `Un solo cobro, se puede pagar del ${this.fecha(f.fecha_inicio)} al ${this.fecha(f.fecha_fin)} (fecha límite).`;
     if (f.mora_tipo !== 'Ninguna') txt += ` Pagado después del vencimiento se suma ${f.mora_tipo === 'Monto' ? this.q(f.mora_valor ?? 0) : `${f.mora_valor ?? 0}%`} de mora.`;
     return txt;
+  }
+
+  /** Ejemplo con el primer cobro: "Enero se paga a más tardar el 05 de febrero". */
+  private ejemploMesVencido(f: ConfigForm): string {
+    const [y, m] = f.fecha_inicio.split('-').map(Number);
+    const [vy, vm] = m === 12 ? [y + 1, 1] : [y, m + 1];
+    const d = Math.min(f.dia_limite || 1, new Date(vy, vm, 0).getDate());
+    return `${MESES[m - 1]} se paga a más tardar el ${String(d).padStart(2, '0')} de ${MESES[vm - 1]}`;
   }
 
   guardarConfig() {
@@ -297,23 +307,65 @@ export class CuotasPage implements OnInit {
     if (f.fecha_fin < f.fecha_inicio) { this.error = 'La fecha de fin no puede ser anterior a la de inicio.'; return; }
     if (f.mora_tipo !== 'Ninguna' && !f.mora_valor) { this.error = 'Indique el valor de la mora.'; return; }
 
-    const payload = {
+    const payload: CuotaConfigPayload = {
       fecha_inicio: f.fecha_inicio, fecha_fin: f.fecha_fin, dia_limite: f.dia_limite,
+      mes_vencido: this.periodicidadForm === 'Mensual' ? f.mes_vencido : 0,
       mora_tipo: f.mora_tipo, mora_valor: f.mora_tipo === 'Ninguna' ? 0 : (f.mora_valor ?? 0),
     };
     this.saving = true;
-    const req$ = f.modo === 'editar'
-      ? this.svc.updateConfig(f.cfg!.idcuotas_ciclos, payload)
-      : this.svc.agregarAlCiclo(this.ciclo, { idcuotas: f.idcuotas, ...payload });
-    req$.subscribe({
-      next: () => {
-        this.saving = false;
-        this.configForm = null;
-        showSuccess(f.modo === 'editar' ? 'Configuración guardada' : 'Cuota agregada al ciclo. Ahora asigne los montos por grado.');
-        this.recargar();
+    if (f.modo === 'nuevo') {
+      this.svc.agregarAlCiclo(this.ciclo, { idcuotas: f.idcuotas, ...payload }).subscribe({
+        next: () => this.configGuardada('Cuota agregada al ciclo. Ahora asigne los montos por grado.'),
+        error: e => this.errorGuardar(e),
+      });
+      return;
+    }
+    // Edición: si hay estudiantes con cobros pendientes que cambiarían, se pregunta si actualizarlos
+    const id = f.cfg!.idcuotas_ciclos;
+    this.svc.impactoConfig(id, payload).subscribe({
+      next: async r => {
+        const imp = r.data!;
+        let actualizar_pendientes = false;
+        if (imp.inscripciones) {
+          const opcion = await confirmDosOpciones('Estudiantes con cuotas pendientes', this.textoImpacto(imp),
+            'Actualizar pendientes', 'Solo inscripciones nuevas');
+          if (!opcion) { this.saving = false; return; }
+          actualizar_pendientes = opcion === 'primera';
+        }
+        this.svc.updateConfig(id, { ...payload, actualizar_pendientes }).subscribe({
+          next: res => this.configGuardada(res.recalculo
+            ? `Configuración guardada. Se actualizaron las cuotas pendientes de ${res.recalculo.inscripciones} estudiante(s).`
+            : 'Configuración guardada'),
+          error: e => this.errorGuardar(e),
+        });
       },
-      error: e => { this.saving = false; this.error = e?.error?.message || 'Error al guardar.'; },
+      error: e => this.errorGuardar(e),
     });
+  }
+
+  private configGuardada(mensaje: string) {
+    this.saving = false;
+    this.configForm = null;
+    showSuccess(mensaje);
+    this.recargar();
+  }
+
+  private errorGuardar(e: any) {
+    this.saving = false;
+    this.error = e?.error?.message || 'Error al guardar.';
+  }
+
+  private textoImpacto(imp: ImpactoConfig): string {
+    const cambios = [
+      imp.actualizar ? `<li>${imp.actualizar} cobro(s) cambian de fecha de vencimiento o mora</li>` : '',
+      imp.anular ? `<li>${imp.anular} cobro(s) de meses fuera del nuevo período se anulan</li>` : '',
+      imp.agregar ? `<li>${imp.agregar} cobro(s) de meses nuevos se agregan</li>` : '',
+    ].join('');
+    return `<p>${imp.inscripciones} estudiante(s) inscrito(s) tienen cuotas pendientes de pago con la configuración anterior.
+      ¿Desea actualizarlas?</p>
+      <ul style="text-align:left;margin:10px 0 10px 18px">${cambios}</ul>
+      <p style="font-size:.88em;opacity:.8">Las cuotas pagadas o anuladas no se modifican.
+      Si elige <b>Solo inscripciones nuevas</b>, los estudiantes ya inscritos conservan sus cuotas como están.</p>`;
   }
 
   async quitarConfig(c: CuotaCiclo) {

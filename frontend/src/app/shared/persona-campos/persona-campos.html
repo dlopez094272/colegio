@@ -27,13 +27,15 @@
         <input class="col-input" [class.inherited]="esHeredado('segundo_apellido')" [(ngModel)]="model.segundo_apellido" [ngModelOptions]="{standalone: true}"
                (ngModelChange)="onEdit('segundo_apellido')" maxlength="60" placeholder="Segundo apellido"/>
       </div>
-      <div class="field">
-        <label class="col-label">Apellido de casada</label>
-        <input class="col-input" [(ngModel)]="model.apellido_casada" [ngModelOptions]="{standalone: true}" maxlength="60" placeholder="Ej. de López"/>
-      </div>
+      @if (esPadre) {
+        <div class="field">
+          <label class="col-label">Apellido de casada</label>
+          <input class="col-input" [(ngModel)]="model.apellido_casada" [ngModelOptions]="{standalone: true}" maxlength="60" placeholder="Ej. de López"/>
+        </div>
+      }
 
       @if (!esPadre) {
-        <div class="field span-2">
+        <div class="field">
           <label class="col-label">Lugar de nacimiento</label>
           <input class="col-input" [(ngModel)]="model.lugar_nacimiento" [ngModelOptions]="{standalone: true}" maxlength="150" placeholder="Municipio, departamento, país"/>
         </div>
@@ -65,10 +67,18 @@
     @if (!compacto) { <div class="form-section-title">Documentos de identificación</div> }
     <div class="field-grid">
       <div class="field">
-        <label class="col-label">{{ esPadre ? 'Número de DPI' : 'DPI / CUI' }}</label>
+        @if (esPadre) { <label class="col-label">Número de DPI</label> }
+        @else { <label class="col-label">CUI <span class="req">*</span></label> }
         <input class="col-input mono" [(ngModel)]="model.dpi" [ngModelOptions]="{standalone: true}" (blur)="limpiarDpi()"
                inputmode="numeric" maxlength="15" placeholder="13 dígitos"/>
       </div>
+      @if (!esPadre) {
+        <div class="field">
+          <label class="col-label">Código MINEDUC</label>
+          <input class="col-input mono" [(ngModel)]="model.codigo_mineduc" [ngModelOptions]="{standalone: true}" (blur)="limpiarMineduc()"
+                 maxlength="20" placeholder="Código personal (opcional)"/>
+        </div>
+      }
       @if (esPadre) {
         <div class="field">
           <label class="col-label">Número de NIT</label>

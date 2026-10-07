@@ -317,7 +317,7 @@
                         @else { <input type="checkbox" [checked]="f.opcionales.has(c.idcuotas_ciclos)" (change)="toggleOpcional(c.idcuotas_ciclos)"/> }
                       </td>
                       <td>{{ c.cuota }} @if (!c.obligatoria) { <span class="chip accent">Opcional</span> }</td>
-                      <td class="nowrap">{{ c.periodicidad === 'Mensual' ? c.cobros + ' cobros (día ' + c.dia_limite + ')' : 'Una vez' }}</td>
+                      <td class="nowrap">{{ c.periodicidad === 'Mensual' ? c.cobros + ' cobros (día ' + c.dia_limite + (c.mes_vencido ? ', mes vencido' : '') + ')' : 'Una vez' }}</td>
                       <td class="num nowrap">{{ q(c.monto) }}</td>
                       <td class="num nowrap">{{ q(c.monto * c.cobros) }}</td>
                     </tr>

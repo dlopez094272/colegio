@@ -245,7 +245,9 @@
               <div class="ficha-field"><span class="ff-label">Segundo nombre</span><span class="ff-value">{{ viewItem.segundo_nombre || '—' }}</span></div>
               <div class="ficha-field"><span class="ff-label">Primer apellido</span><span class="ff-value">{{ viewItem.primer_apellido }}</span></div>
               <div class="ficha-field"><span class="ff-label">Segundo apellido</span><span class="ff-value">{{ viewItem.segundo_apellido || '—' }}</span></div>
-              <div class="ficha-field"><span class="ff-label">Apellido de casada</span><span class="ff-value">{{ viewItem.apellido_casada || '—' }}</span></div>
+              @if (esPadres) {
+                <div class="ficha-field"><span class="ff-label">Apellido de casada</span><span class="ff-value">{{ viewItem.apellido_casada || '—' }}</span></div>
+              }
               <div class="ficha-field"><span class="ff-label">Fecha de nacimiento</span>
                 <span class="ff-value">
                   @if (viewItem.fecha_nacimiento) { {{ viewItem.fecha_nacimiento | date:'dd/MM/yyyy':'UTC' }} ({{ viewItem.edad }} años) } @else { — }
@@ -262,7 +264,10 @@
           <div class="ficha-section">
             <div class="ficha-section-title">Documentos</div>
             <div class="ficha-fields">
-              <div class="ficha-field"><span class="ff-label">DPI</span><span class="ff-value">{{ viewItem.dpi || '—' }}</span></div>
+              <div class="ficha-field"><span class="ff-label">{{ esPadres ? 'DPI' : 'CUI' }}</span><span class="ff-value">{{ viewItem.dpi || '—' }}</span></div>
+              @if (!esPadres) {
+                <div class="ficha-field"><span class="ff-label">Código MINEDUC</span><span class="ff-value">{{ viewItem.codigo_mineduc || '—' }}</span></div>
+              }
               @if (esPadres) {
                 <div class="ficha-field"><span class="ff-label">NIT</span><span class="ff-value">{{ viewItem.nit || '—' }}</span></div>
                 <div class="ficha-field"><span class="ff-label">Pasaporte</span><span class="ff-value">{{ viewItem.pasaporte || '—' }}</span></div>

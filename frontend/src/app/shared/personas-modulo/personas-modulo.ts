@@ -190,7 +190,7 @@ export class PersonasModuloComponent implements OnInit, OnDestroy {
           primer_nombre: d.primer_nombre ?? '', segundo_nombre: d.segundo_nombre ?? '',
           primer_apellido: d.primer_apellido ?? '', segundo_apellido: d.segundo_apellido ?? '',
           apellido_casada: d.apellido_casada ?? '', fecha_nacimiento: d.fecha_nacimiento ?? '',
-          lugar_nacimiento: d.lugar_nacimiento ?? '', dpi: d.dpi ?? '', direccion: d.direccion ?? '', telefono_casa: d.telefono_casa ?? '',
+          lugar_nacimiento: d.lugar_nacimiento ?? '', dpi: d.dpi ?? '', codigo_mineduc: d.codigo_mineduc ?? '', direccion: d.direccion ?? '', telefono_casa: d.telefono_casa ?? '',
           telefono_celular: d.telefono_celular ?? '', idestados_civiles: d.idestados_civiles ?? null,
           nacionalidad: d.nacionalidad ?? '', nit: d.nit ?? '', pasaporte: d.pasaporte ?? '', email: d.email ?? '',
         };
@@ -207,13 +207,18 @@ export class PersonasModuloComponent implements OnInit, OnDestroy {
   private validar(): string | null {
     if (!this.form.primer_nombre.trim())   return 'El primer nombre es requerido.';
     if (!this.form.primer_apellido.trim()) return 'El primer apellido es requerido.';
-    if (this.form.dpi && !/^\d{13}$/.test(this.form.dpi)) return 'El DPI debe tener 13 dígitos.';
+    if (!this.esPadres && !this.form.dpi) return 'El CUI del estudiante es requerido.';
+    if (this.form.dpi && !/^\d{13}$/.test(this.form.dpi)) return `El ${this.esPadres ? 'DPI' : 'CUI'} debe tener 13 dígitos.`;
     if (this.esPadres && this.form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.form.email.trim())) return 'El correo electrónico no es válido.';
     for (const v of this.vinculos) {
       if (!v.nuevo) continue;
       if (!v.nuevo.primer_nombre.trim() || !v.nuevo.primer_apellido.trim()) {
         v.abierto = true;
         return `Complete el primer nombre y primer apellido del ${this.cfg.singularOtro} nuevo.`;
+      }
+      if (this.esPadres && !v.nuevo.dpi) {
+        v.abierto = true;
+        return `El CUI del ${this.cfg.singularOtro} nuevo es requerido.`;
       }
       if (v.nuevo.dpi && !/^\d{13}$/.test(v.nuevo.dpi)) {
         v.abierto = true;
@@ -228,8 +233,8 @@ export class PersonasModuloComponent implements OnInit, OnDestroy {
     if (this.error) return;
 
     const payload = { ...this.form, activo: this.activo, vinculos: vinculosPayload(this.vinculos) };
-    if (this.esPadres) delete (payload as any).lugar_nacimiento;
-    else { for (const c of ['nit', 'pasaporte', 'idestados_civiles', 'nacionalidad', 'email']) delete (payload as any)[c]; }
+    if (this.esPadres) { for (const c of ['lugar_nacimiento', 'codigo_mineduc']) delete (payload as any)[c]; }
+    else { for (const c of ['apellido_casada', 'nit', 'pasaporte', 'idestados_civiles', 'nacionalidad', 'email']) delete (payload as any)[c]; }
 
     this.saving = true;
     const req$ = this.isEdit && this.editId

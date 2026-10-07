@@ -20,12 +20,14 @@ const { normalizar, validar, heredar, nombreCompleto, normalizarParentesco } = r
  * @param {string} cfg.etiqueta / cfg.etiquetaOtro   - textos legibles para mensajes
  * @param {object} cfg.Modelo / cfg.ModeloOtro       - modelos (personaModelFactory)
  * @param {string[]} cfg.campos / cfg.camposOtro     - campos editables de cada lado
+ * @param {boolean} [cfg.dpiRequerido / cfg.dpiRequeridoOtro] - DPI/CUI obligatorio en ese lado
  * @param {Function} cfg.getVinculos(id, conn)       - vínculos actuales del registro principal
  * @param {Function} cfg.vincular(conn, id, idOtro, parentesco)
  * @param {Function} cfg.desvincular(conn, id, idOtro)
  */
 function crearControladorPersona(cfg) {
-  const { tabla, tablaOtro, pk, etiqueta, etiquetaOtro, Modelo, ModeloOtro, campos, camposOtro, getVinculos, vincular, desvincular } = cfg;
+  const { tabla, tablaOtro, pk, etiqueta, etiquetaOtro, Modelo, ModeloOtro, campos, camposOtro, getVinculos, vincular, desvincular,
+          dpiRequerido = false, dpiRequeridoOtro = false } = cfg;
   const camposAuditables = [...campos, 'activo'];
 
   function http(status, message, extra = {}) {
@@ -52,7 +54,7 @@ function crearControladorPersona(cfg) {
       const parentesco = normalizarParentesco(item?.parentesco);
       if (item?.nuevo) {
         const data = heredar(normalizar(item.nuevo, camposOtro), principal);
-        const error = validar(data, `${etiquetaOtro} nuevo`);
+        const error = validar(data, `${etiquetaOtro} nuevo`, { dpiRequerido: dpiRequeridoOtro });
         if (error) throw http(400, error);
         if (data.dpi) {
           if (dpisNuevos.has(data.dpi)) throw http(409, `El DPI ${data.dpi} está repetido entre los ${etiquetaOtro}s nuevos`);
@@ -208,7 +210,7 @@ function crearControladorPersona(cfg) {
     async create(req, res, next) {
       try {
         const data = normalizar(req.body, campos);
-        const error = validar(data, etiqueta);
+        const error = validar(data, etiqueta, { dpiRequerido });
         if (error) return res.status(400).json({ message: error });
         data.activo = leerActivo(req.body, 1);
 
@@ -238,7 +240,7 @@ function crearControladorPersona(cfg) {
         if (!antes) return res.status(404).json({ message: `${cap(etiqueta)} no encontrado` });
 
         const data = normalizar(req.body, campos);
-        const error = validar(data, etiqueta);
+        const error = validar(data, etiqueta, { dpiRequerido });
         if (error) return res.status(400).json({ message: error });
         data.activo = leerActivo(req.body, antes.activo);
 

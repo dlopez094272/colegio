@@ -132,6 +132,52 @@ export async function confirmDialog(
   return result.isConfirmed;
 }
 
+/**
+ * Pregunta con dos caminos además de cancelar (ej. "Actualizar todo" / "Solo lo nuevo").
+ * Devuelve 'primera', 'segunda' o null si se cancela. `html` se muestra tal cual:
+ * no pasar texto ingresado por usuarios.
+ */
+export async function confirmDosOpciones(
+  title: string,
+  html: string,
+  primeraText: string,
+  segundaText: string,
+): Promise<'primera' | 'segunda' | null> {
+  const result = await Swal.fire({
+    title,
+    html,
+    icon: 'question',
+    showDenyButton: true,
+    showCancelButton: true,
+    confirmButtonText: primeraText,
+    denyButtonText: segundaText,
+    cancelButtonText: 'Cancelar',
+    background: 'linear-gradient(160deg, #2A2926 0%, #1E1D1B 100%)',
+    color: '#ffffff',
+    confirmButtonColor: '#D4B24C',
+    denyButtonColor: 'rgba(255,255,255,0.18)',
+    cancelButtonColor: 'rgba(255,255,255,0.08)',
+    iconColor: '#D4B24C',
+    customClass: {
+      popup:         'col-swal-popup',
+      confirmButton: 'col-swal-confirm',
+      denyButton:    'col-swal-cancel',
+      title:         'col-swal-title',
+      htmlContainer: 'col-swal-text',
+      cancelButton:  'col-swal-cancel',
+    },
+    didOpen: (popup) => {
+      popup.style.setProperty('border', '1px solid rgba(212,178,76,0.35)');
+      popup.style.setProperty('border-radius', '16px');
+      popup.style.setProperty('box-shadow', '0 8px 40px rgba(0,0,0,0.55)');
+      popup.style.setProperty('font-family', "'Inter', 'Segoe UI', sans-serif");
+    },
+  });
+  if (result.isConfirmed) return 'primera';
+  if (result.isDenied) return 'segunda';
+  return null;
+}
+
 /** Pide un motivo obligatorio (anulaciones). Devuelve null si se cancela. */
 export async function promptMotivo(
   title: string,

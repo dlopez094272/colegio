@@ -10,7 +10,7 @@ const { pool } = require('../config/database');
 const CC_COLS = `cc.idcuotas_ciclos, cc.idcuotas, cc.ciclo,
   DATE_FORMAT(cc.fecha_inicio, '%Y-%m-%d') AS fecha_inicio,
   DATE_FORMAT(cc.fecha_fin, '%Y-%m-%d') AS fecha_fin,
-  cc.dia_limite, cc.mora_tipo, cc.mora_valor`;
+  cc.dia_limite, cc.mes_vencido, cc.mora_tipo, cc.mora_valor`;
 
 const CuotaModel = {
   // ─── Catálogo ──────────────────────────────────────────────
@@ -131,8 +131,8 @@ const CuotaModel = {
     return r.insertId;
   },
 
-  async updateConfig(id, data) {
-    await pool.query('UPDATE cuotas_ciclos SET ? WHERE idcuotas_ciclos = ?', [data, id]);
+  async updateConfig(id, data, conn = pool) {
+    await conn.query('UPDATE cuotas_ciclos SET ? WHERE idcuotas_ciclos = ?', [data, id]);
   },
 
   /** Estudiantes inscritos con cobros de esta configuración (impide quitarla del ciclo). */
