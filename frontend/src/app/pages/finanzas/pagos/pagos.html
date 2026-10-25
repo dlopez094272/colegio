@@ -76,6 +76,9 @@
               <td>
                 @if (p.estado === 'Activo') { <span class="badge success">Vigente</span> }
                 @else { <span class="badge danger" [title]="p.motivo_anulacion || ''">Anulado</span> }
+                @if (felEtiqueta(p); as fe) {
+                  <div><span class="badge pg-fel" [class]="fe.clase" [title]="p.fel_mensaje || ''">{{ fe.texto }}</span></div>
+                }
               </td>
             </tr>
           } @empty {
@@ -227,8 +230,13 @@
                     <input class="col-input" name="pagador_nombre" [(ngModel)]="c.pagador_nombre" maxlength="150"/>
                   </div>
                   <div class="field">
-                    <label class="col-label">NIT</label>
-                    <input class="col-input" name="pagador_nit" [(ngModel)]="c.pagador_nit" maxlength="20" placeholder="CF"/>
+                    <label class="col-label">
+                      NIT
+                      @if (consultandoNit) { <span class="spinner dark pg-nit-spin"></span> }
+                    </label>
+                    <input class="col-input" name="pagador_nit" [(ngModel)]="c.pagador_nit" maxlength="20" placeholder="CF"
+                           (change)="consultarNit()" (keydown.enter)="$event.preventDefault(); consultarNit()"/>
+                    @if (nitConsulta) { <div class="field-hint">Al cambiarlo se busca el nombre registrado.</div> }
                   </div>
                 </div>
                 <div class="field-row">
@@ -260,6 +268,15 @@
                     </span>
                   </span>
                 </label>
+                @if (felHabilitado) {
+                  <label class="pg-notificar">
+                    <input type="checkbox" name="emitir_fel" [(ngModel)]="c.emitir_fel"/>
+                    <span>
+                      Emitir recibo electrónico SAT (FEL)
+                      <span class="sub-txt">Se certifica a nombre de {{ c.pagador_nombre || '—' }}, NIT {{ c.pagador_nit || 'CF' }}. Si no se marca, puede emitirse después desde el listado.</span>
+                    </span>
+                  </label>
+                }
               </div>
 
               <div class="pg-resumen">
@@ -312,6 +329,22 @@
             <div class="ficha-field"><span class="ff-label">Registrado por</span><span class="ff-value">{{ d.usuario_registro || '—' }} · {{ d.fecha_creacion | date:'dd/MM/yyyy HH:mm' }}</span></div>
             @if (d.observaciones) { <div class="ficha-field full"><span class="ff-label">Observaciones</span><span class="ff-value">{{ d.observaciones }}</span></div> }
           </div>
+          @if (d.fel_estado) {
+            <div class="pg-fel-box" [class.error]="d.fel_estado === 'Error' || d.fel_estado === 'Error al anular'">
+              <div class="pg-fel-titulo">
+                Recibo electrónico SAT
+                @if (felEtiqueta(d); as fe) { <span class="badge" [class]="fe.clase">{{ fe.texto }}</span> }
+              </div>
+              @if (d.fel_uuid) {
+                <div class="ficha-fields pg-ficha">
+                  <div class="ficha-field"><span class="ff-label">Serie / número</span><span class="ff-value mono">{{ d.fel_serie }} · {{ d.fel_numero }}</span></div>
+                  <div class="ficha-field"><span class="ff-label">Certificado</span><span class="ff-value">{{ d.fel_fecha_certificacion | date:'dd/MM/yyyy HH:mm' }} · NIT {{ d.fel_id_receptor }}</span></div>
+                  <div class="ficha-field full"><span class="ff-label">Número de autorización</span><span class="ff-value mono">{{ d.fel_uuid }}</span></div>
+                </div>
+              }
+              @if (d.fel_mensaje && d.fel_estado !== 'Certificado') { <div class="sub-txt">{{ d.fel_mensaje }}</div> }
+            </div>
+          }
           @if (d.detalle) {
             <table class="col-table pg-tabla">
               <thead><tr><th>Estudiante</th><th>Cuota</th><th>Vence</th><th class="num">Monto</th><th class="num">Mora</th><th class="num">Total</th></tr></thead>
@@ -343,6 +376,18 @@
         <button class="btn-col ghost" (click)="detalle = null">Cerrar</button>
         @if (puedeA && d.estado === 'Activo' && correoHabilitado) {
           <button class="btn-col outline" (click)="enviarComprobante(d)">Enviar por correo</button>
+        }
+        @if (puedeA && puedeEmitirFel(d)) {
+          <button class="btn-col outline" (click)="certificarFel(d)" [disabled]="felEnCurso.has(d.idpagos)">
+            @if (felEnCurso.has(d.idpagos)) { <span class="spinner dark"></span> }
+            {{ d.fel_estado === 'Error' ? 'Reintentar recibo electrónico' : 'Emitir recibo electrónico' }}
+          </button>
+        }
+        @if (puedeD && d.estado === 'Anulado' && d.fel_estado === 'Error al anular') {
+          <button class="btn-col outline" (click)="reintentarAnulacionFel(d)" [disabled]="felEnCurso.has(d.idpagos)">
+            @if (felEnCurso.has(d.idpagos)) { <span class="spinner dark"></span> }
+            Reintentar anulación SAT
+          </button>
         }
         <button class="btn-col primary" (click)="verRecibo(d.idpagos)">Imprimir recibo</button>
       </div>

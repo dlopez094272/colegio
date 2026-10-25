@@ -2,10 +2,10 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { CargoPendiente, FORMAS_PAGO, FormaPago, PagadorBusqueda, Pago, PendientesPago } from '../../../models';
+import { CargoPendiente, FORMAS_PAGO, FormaPago, PagadorBusqueda, Pago, PendientesPago, ResultadoFel } from '../../../models';
 import { PagosService } from '../../../services/pagos.service';
 import { PermisosService } from '../../../services/permisos.service';
-import { confirmSuccessChoice, promptCorreo, promptMotivo, showError, showSuccess } from '../../../services/confirm';
+import { confirmDialog, confirmSuccessChoice, promptCorreo, promptMotivo, showAlert, showError, showSuccess } from '../../../services/confirm';
 import { ConfiguracionService } from '../../../services/configuracion.service';
 import { PaginatorComponent } from '../../../shared/paginator/paginator';
 import { RowAction, RowMenuComponent } from '../../../shared/row-menu/row-menu';
@@ -37,6 +37,8 @@ interface CobroForm {
   observaciones: string;
   /** Enviar el comprobante (recibo en PDF) por correo. */
   notificar: boolean;
+  /** Certificar el recibo electrónico SAT al registrar el pago. */
+  emitir_fel: boolean;
 }
 
 const hoyIso = () => {
@@ -48,7 +50,9 @@ const primeroDelMes = () => hoyIso().substring(0, 8) + '01';
 /**
  * Pagos: cobro de cuotas del estado de cuenta. Se busca al padre (cobra todas
  * las cuotas de sus hijos) o al estudiante, se marcan las cuotas pendientes
- * (con su mora a la fecha de pago) y se genera el recibo en PDF.
+ * (con su mora a la fecha de pago) y se genera el recibo en PDF. Si está
+ * habilitado en Configuración, el recibo se certifica ante SAT (FEL, tipo RECI)
+ * al cobrar o después desde el listado.
  */
 @Component({
   selector: 'app-pagos',
@@ -82,6 +86,10 @@ export class PagosPage implements OnInit, OnDestroy {
   private buscarTimer: any;
   saving = false;
   error = '';
+  consultandoNit = false;
+  private nitConsultado = '';
+  /** Pagos con una certificación o anulación FEL en curso. */
+  felEnCurso = new Set<number>();
 
   // ── Detalle ──
   detalle: Pago | null = null;
@@ -103,6 +111,10 @@ export class PagosPage implements OnInit, OnDestroy {
     const c = this.cobro;
     return c?.idpadres ? c.pendientes?.pagadores.find(p => p.idpadres === c.idpadres)?.email ?? null : null;
   }
+
+  /** Recibo electrónico SAT habilitado (Configuración › Recibo electrónico). */
+  get felHabilitado() { return !!this.config.colegio()?.fel_habilitado; }
+  get nitConsulta() { return !!this.config.colegio()?.nit_consulta; }
 
   get puedeA() { return this.permisos.tiene('pagos', 'A'); }
   get puedeD() { return this.permisos.tiene('pagos', 'D'); }
@@ -166,6 +178,10 @@ export class PagosPage implements OnInit, OnDestroy {
       { label: 'Detalle', icon: 'view', action: () => this.abrirDetalle(p, 'detalle') },
       { label: 'Bitácora', icon: 'bitacora', action: () => this.abrirDetalle(p, 'bitacora') },
     ];
+    if (this.puedeA && this.puedeEmitirFel(p))
+      a.push({ label: p.fel_estado === 'Error' ? 'Reintentar recibo electrónico SAT' : 'Emitir recibo electrónico SAT', icon: 'receipt', action: () => this.certificarFel(p) });
+    if (this.puedeD && p.estado === 'Anulado' && p.fel_estado === 'Error al anular')
+      a.push({ label: 'Reintentar anulación ante SAT', icon: 'anular', action: () => this.reintentarAnulacionFel(p) });
     if (this.puedeA && p.estado === 'Activo' && this.correoHabilitado)
       a.push({ label: 'Enviar comprobante por correo', icon: 'mail', action: () => this.enviarComprobante(p) });
     if (this.puedeD && p.estado === 'Activo') a.push({ label: 'Anular recibo', icon: 'anular', variant: 'danger', action: () => this.anular(p) });
@@ -193,16 +209,87 @@ export class PagosPage implements OnInit, OnDestroy {
   }
 
   async anular(p: Pago) {
+    const sat = p.fel_estado === 'Certificado' ? ' También se anulará ante SAT el recibo electrónico.' : '';
     const motivo = await promptMotivo(
       `Anular recibo ${this.numero(p.numero)}`,
-      `${this.q(p.total)} — ${p.pagador_nombre}. Las cuotas del recibo volverán a quedar pendientes de pago.`,
+      `${this.q(p.total)} — ${p.pagador_nombre}. Las cuotas del recibo volverán a quedar pendientes de pago.${sat}`,
       'Anular recibo',
     );
     if (!motivo) return;
     this.svc.anular(p.idpagos, motivo).subscribe({
-      next: () => { showSuccess('Recibo anulado'); this.detalle = null; this.load(); },
+      next: r => {
+        this.detalle = null;
+        this.load();
+        if (r.fel && !r.fel.anulado)
+          showAlert('Recibo anulado', `El recibo se anuló en el sistema, pero no ante SAT: ${r.fel.error}. Puede reintentarlo desde el listado.`);
+        else showSuccess(r.fel ? 'Recibo anulado (también ante SAT)' : 'Recibo anulado');
+      },
       error: e => showError(e?.error?.message || 'No se pudo anular'),
     });
+  }
+
+  // ─── Recibo electrónico SAT (FEL) ───
+  puedeEmitirFel(p: Pago) {
+    return this.felHabilitado && p.estado === 'Activo' && (!p.fel_estado || p.fel_estado === 'Error');
+  }
+
+  felEtiqueta(p: Pago): { texto: string; clase: string } | null {
+    switch (p.fel_estado) {
+      case 'Certificado': return { texto: 'FEL', clase: 'info' };
+      case 'Procesando': return { texto: 'FEL en proceso', clase: 'warning' };
+      case 'Error': return { texto: 'FEL con error', clase: 'danger' };
+      case 'Anulado': return { texto: 'FEL anulado', clase: 'neutral' };
+      case 'Error al anular': return { texto: 'FEL sin anular', clase: 'danger' };
+      default: return null;
+    }
+  }
+
+  async certificarFel(p: Pago) {
+    if (this.felEnCurso.has(p.idpagos)) return;
+    const ok = await confirmDialog(
+      `Se certificará ante SAT un recibo electrónico por ${this.q(p.total)} a nombre de ${p.pagador_nombre} (NIT ${p.pagador_nit}).`,
+      `Recibo electrónico — recibo No. ${this.numero(p.numero)}`, 'Certificar', false,
+    );
+    if (!ok) return;
+    this.felEnCurso.add(p.idpagos);
+    this.svc.certificarFel(p.idpagos).subscribe({
+      next: r => {
+        this.felEnCurso.delete(p.idpagos);
+        showSuccess(`Recibo electrónico certificado: serie ${r.serie}, No. ${r.numero}`);
+        this.refrescar(p.idpagos);
+      },
+      error: e => {
+        this.felEnCurso.delete(p.idpagos);
+        showAlert('No se certificó el recibo electrónico', e?.error?.message || 'Error al comunicarse con el certificador', 'error');
+        this.refrescar(p.idpagos);
+      },
+    });
+  }
+
+  reintentarAnulacionFel(p: Pago) {
+    if (this.felEnCurso.has(p.idpagos)) return;
+    this.felEnCurso.add(p.idpagos);
+    this.svc.anularFel(p.idpagos).subscribe({
+      next: () => { this.felEnCurso.delete(p.idpagos); showSuccess('Recibo electrónico anulado ante SAT'); this.refrescar(p.idpagos); },
+      error: e => {
+        this.felEnCurso.delete(p.idpagos);
+        showAlert('No se anuló ante SAT', e?.error?.message || 'Error al comunicarse con el certificador', 'error');
+        this.refrescar(p.idpagos);
+      },
+    });
+  }
+
+  /** Recarga el listado y, si está abierto, el detalle del pago. */
+  private refrescar(idpagos: number) {
+    this.load();
+    if (this.detalle?.idpagos === idpagos) this.abrirDetalle(this.detalle, this.detalleTab);
+  }
+
+  private mensajeFel(f: ResultadoFel | null): string {
+    if (!f) return '';
+    return f.certificado
+      ? ` Recibo electrónico SAT certificado: serie ${f.serie}, No. ${f.numero}.`
+      : ` No se certificó el recibo electrónico: ${f.error}. Puede reintentarlo desde el listado.`;
   }
 
   // ═════════════ Cobro ═════════════
@@ -215,7 +302,9 @@ export class PagosPage implements OnInit, OnDestroy {
       marcados: new Set(), exonerar: new Set(),
       idpadres: null, pagador_nombre: '', pagador_nit: 'CF', forma_pago: 'Efectivo', referencia: '', observaciones: '',
       notificar: this.correoHabilitado && !!this.config.colegio()?.notificar_pago,
+      emitir_fel: this.felHabilitado && !!this.config.colegio()?.fel_emitir_pago,
     };
+    this.nitConsultado = '';
     if (sel) this.elegir(sel);
   }
 
@@ -290,6 +379,26 @@ export class PagosPage implements OnInit, OnDestroy {
     c.idpadres = p?.idpadres ?? null;
     c.pagador_nombre = p?.nombre ?? '';
     c.pagador_nit = p?.nit || 'CF';
+    this.nitConsultado = c.pagador_nit.toUpperCase().replace(/[\s-]/g, '');
+  }
+
+  /** Al cambiar el NIT busca el nombre registrado y lo pone como nombre de quien paga. */
+  consultarNit() {
+    const c = this.cobro;
+    if (!c || !this.nitConsulta) return;
+    const nit = c.pagador_nit.trim().toUpperCase().replace(/[\s-]/g, '');
+    if (!nit || nit === 'CF' || nit === this.nitConsultado) return;
+    this.nitConsultado = nit;
+    this.consultandoNit = true;
+    this.svc.consultarNit(nit).subscribe({
+      next: r => {
+        this.consultandoNit = false;
+        if (this.cobro !== c) return;
+        if (r.success && r.data) c.pagador_nombre = r.data.nombre;
+        else showError('NIT no encontrado; verifique el número o escriba el nombre');
+      },
+      error: e => { this.consultandoNit = false; showError(e?.error?.message || 'No se pudo consultar el NIT'); },
+    });
   }
 
   get grupos(): GrupoCobro[] {
@@ -371,6 +480,7 @@ export class PagosPage implements OnInit, OnDestroy {
       forma_pago: c.forma_pago, referencia: c.referencia, observaciones: c.observaciones,
       cargos: [...c.marcados].map(id => ({ idinscripciones_cargos: id, exonerar_mora: c.exonerar.has(id) })),
       notificar: this.correoHabilitado && c.notificar,
+      emitir_fel: this.felHabilitado && c.emitir_fel,
     }).subscribe({
       next: async r => {
         this.saving = false;
@@ -381,7 +491,7 @@ export class PagosPage implements OnInit, OnDestroy {
           : ` No se envió el comprobante por correo: ${r.correo.error}`;
         const ver = await confirmSuccessChoice(
           `Recibo No. ${this.numero(r.numero)}`,
-          `Pago registrado por ${this.q(r.total)}.${aviso}`,
+          `Pago registrado por ${this.q(r.total)}.${this.mensajeFel(r.fel)}${aviso}`,
           'Imprimir recibo', 'Cerrar',
         );
         if (ver) this.verRecibo(r.id);

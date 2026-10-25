@@ -8,6 +8,7 @@ const { siguienteCorrelativo } = require('../utils/correlativo');
 const { enviar } = require('../pdf/base');
 const { generarRecibo, numeroRecibo } = require('../pdf/recibo');
 const { notificarPago, intentar } = require('../utils/notificaciones');
+const fel = require('../utils/fel');
 
 const FORMAS_PAGO = ['Efectivo', 'Depósito', 'Transferencia', 'Tarjeta', 'Cheque'];
 const RE_FECHA = /^\d{4}-\d{2}-\d{2}$/;
@@ -23,6 +24,38 @@ function leerFechaPago(v) {
 }
 
 const numericoPago = p => ({ ...p, subtotal: Number(p.subtotal), mora: Number(p.mora), total: Number(p.total) });
+
+/** Certifica el recibo electrónico y lo registra en bitácora. → { certificado, serie, numero, uuid } | { certificado: false, error } */
+async function emitirFel(idpagos, numero, req) {
+  try {
+    const r = await fel.certificarPago(idpagos, req.user?.id ?? null);
+    await registrarBitacora({
+      tabla: 'pagos', idregistro: idpagos, accion: 'MODIFICAR',
+      descripcion: `Recibo ${numeroRecibo(numero)}: recibo electrónico SAT certificado (serie ${r.serie}, No. ${r.numero})`,
+      valoresDespues: { fel_estado: 'Certificado', fel_serie: r.serie, fel_numero: r.numero, fel_uuid: r.uuid }, req,
+    });
+    return { certificado: true, ...r };
+  } catch (err) {
+    if (!err.status) throw err;
+    return { certificado: false, error: err.message };
+  }
+}
+
+/** Anula ante SAT el recibo electrónico y lo registra en bitácora. → { anulado: true } | { anulado: false, error } */
+async function anularEnSat(idpagos, numero, uuid, req) {
+  try {
+    await fel.anularPago(idpagos, req.user?.id ?? null);
+    await registrarBitacora({
+      tabla: 'pagos', idregistro: idpagos, accion: 'ANULAR',
+      descripcion: `Recibo ${numeroRecibo(numero)}: recibo electrónico SAT anulado (autorización ${uuid})`,
+      valoresDespues: { fel_estado: 'Anulado' }, req,
+    });
+    return { anulado: true };
+  } catch (err) {
+    if (!err.status) throw err;
+    return { anulado: false, error: err.message };
+  }
+}
 
 const ctrl = {
   // GET /api/pagos
@@ -85,7 +118,8 @@ const ctrl = {
 
   // POST /api/pagos
   //   { fecha_pago, idpadres?, pagador_nombre, pagador_nit?, forma_pago, referencia?, observaciones?,
-  //     cargos: [{ idinscripciones_cargos, exonerar_mora? }], notificar?: true → envía el comprobante por correo }
+  //     cargos: [{ idinscripciones_cargos, exonerar_mora? }], notificar?: true → envía el comprobante por correo,
+  //     emitir_fel?: true → certifica el recibo electrónico SAT (antes del correo, para que el PDF lo incluya) }
   // Montos y mora se recalculan aquí: nunca se toman del cliente.
   async create(req, res, next) {
     try {
@@ -152,8 +186,9 @@ const ctrl = {
         },
         req,
       });
+      const felR = req.body.emitir_fel ? await emitirFel(idpagos, numero, req) : null;
       const correo = req.body.notificar ? await intentar(() => notificarPago(idpagos, { req })) : null;
-      res.status(201).json({ success: true, id: idpagos, numero, total: pago.total, correo });
+      res.status(201).json({ success: true, id: idpagos, numero, total: pago.total, fel: felR, correo });
     } catch (err) { next(err); }
   },
 
@@ -164,6 +199,7 @@ const ctrl = {
       const p = await PagoModel.findById(id);
       if (!p) return res.status(404).json({ message: 'Pago no encontrado' });
       if (p.estado !== 'Activo') return res.status(409).json({ message: 'El recibo ya está anulado' });
+      if (p.fel_estado === 'Procesando') return res.status(409).json({ message: 'El recibo electrónico se está certificando; intente en un momento' });
       const motivo = texto(req.body.motivo, 255);
       if (!motivo) return res.status(400).json({ message: 'Indique el motivo de la anulación' });
 
@@ -178,7 +214,40 @@ const ctrl = {
         valoresAntes: { estado: 'Activo', total: Number(p.total), cuotas: detalle.map(d => `${d.estudiante}: ${d.concepto}`) },
         valoresDespues: { estado: 'Anulado', motivo }, req,
       });
+      // El recibo electrónico se anula ante SAT después de anular el pago en el sistema
+      const felR = p.fel_estado === 'Certificado' ? await anularEnSat(id, p.numero, p.fel_uuid, req) : null;
+      res.json({ success: true, fel: felR });
+    } catch (err) { next(err); }
+  },
+
+  // POST /api/pagos/:id/fel   → certifica (o reintenta) el recibo electrónico SAT de un pago vigente
+  async certificarFel(req, res, next) {
+    try {
+      const p = await PagoModel.findById(req.params.id);
+      if (!p) return res.status(404).json({ message: 'Pago no encontrado' });
+      const r = await emitirFel(p.idpagos, p.numero, req);
+      if (!r.certificado) return res.status(502).json({ message: r.error });
+      res.json({ success: true, ...r });
+    } catch (err) { next(err); }
+  },
+
+  // POST /api/pagos/:id/fel/anular   → reintenta la anulación ante SAT de un recibo ya anulado
+  async anularFel(req, res, next) {
+    try {
+      const p = await PagoModel.findById(req.params.id);
+      if (!p) return res.status(404).json({ message: 'Pago no encontrado' });
+      const r = await anularEnSat(p.idpagos, p.numero, p.fel_uuid, req);
+      if (!r.anulado) return res.status(502).json({ message: r.error });
       res.json({ success: true });
+    } catch (err) { next(err); }
+  },
+
+  // GET /api/pagos/nit/:nit   → nombre registrado del NIT (para llenar el pagador)
+  async consultarNit(req, res, next) {
+    try {
+      const r = await fel.consultarNit(req.params.nit);
+      if (!r) return res.json({ success: false, message: 'NIT no encontrado' });
+      res.json({ success: true, data: r });
     } catch (err) { next(err); }
   },
 

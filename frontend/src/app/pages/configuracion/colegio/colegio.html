@@ -24,6 +24,7 @@
       <button class="detail-tab" [class.active]="tab === 'general'" (click)="tab = 'general'">Datos generales</button>
       <button class="detail-tab" [class.active]="tab === 'contrato'" (click)="tab = 'contrato'">Contrato de inscripción</button>
       <button class="detail-tab" [class.active]="tab === 'correo'" (click)="tab = 'correo'">Correo saliente</button>
+      <button class="detail-tab" [class.active]="tab === 'fel'" (click)="tab = 'fel'">Recibo electrónico (FEL)</button>
     </div>
 
     <form (ngSubmit)="guardar()" class="cfg-body">
@@ -292,6 +293,192 @@
               <div class="field-hint">Usa los datos escritos arriba aunque aún no se hayan guardado.</div>
             </div>
           }
+        }
+
+        <!-- ═════════════ Recibo electrónico (FEL) ═════════════ -->
+        @if (tab === 'fel') {
+          <p class="cfg-intro">Al registrar un pago se puede certificar ante SAT un <strong>recibo electrónico (DTE tipo RECI)</strong> por medio del
+            certificador contratado por el colegio. Los datos de la certificación se imprimen en el recibo en PDF.</p>
+
+          <div class="form-section">
+            <div class="cfg-stack">
+              <label class="switch-wrap">
+                <input type="checkbox" [checked]="f.fel_habilitado === 1" (change)="f.fel_habilitado = $any($event.target).checked ? 1 : 0"/>
+                <span class="switch-slider"></span>
+                <span class="switch-label">
+                  Habilitar recibo electrónico
+                  <span class="switch-desc">Muestra la opción "Emitir recibo electrónico SAT" al cobrar y en el listado de pagos</span>
+                </span>
+              </label>
+              <label class="switch-wrap">
+                <input type="checkbox" [checked]="f.fel_emitir_pago === 1" (change)="f.fel_emitir_pago = $any($event.target).checked ? 1 : 0"/>
+                <span class="switch-slider"></span>
+                <span class="switch-label">
+                  Emitir al registrar el pago
+                  <span class="switch-desc">Al cobrar, la opción aparece marcada (puede desmarcarse y emitirse después desde el listado)</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Certificador</div>
+            <div class="field-grid">
+              <div class="field">
+                <label class="col-label">Certificador</label>
+                <select class="col-input" name="fel_certificador" [(ngModel)]="f.fel_certificador" (ngModelChange)="onCertificador()">
+                  <option [ngValue]="''">— Seleccione —</option>
+                  @for (c of certificadores; track c) { <option [ngValue]="c">{{ c }}</option> }
+                </select>
+              </div>
+              <div class="field">
+                <label class="col-label">NIT del certificador</label>
+                <input class="col-input mono" name="fel_certificador_nit" [(ngModel)]="f.fel_certificador_nit" maxlength="20"/>
+                <div class="field-hint">Se imprime en el recibo.</div>
+              </div>
+              @if (esInfile) {
+                <div class="field">
+                  <label class="col-label">Usuario</label>
+                  <input class="col-input mono" name="fel_usuario" [(ngModel)]="f.fel_usuario" maxlength="100" autocomplete="off"/>
+                  <div class="field-hint">Usuario del servicio de certificación.</div>
+                </div>
+                <div class="field">
+                  <label class="col-label">Alias</label>
+                  <input class="col-input mono" name="fel_alias" [(ngModel)]="f.fel_alias" maxlength="100" autocomplete="off"/>
+                  <div class="field-hint">Alias del firmador.</div>
+                </div>
+              }
+              <div class="field" [class.span-2]="esInfile" [class.span-3]="!esInfile">
+                <label class="col-label">
+                  {{ esInfile ? 'Llave de firma' : 'API key' }}
+                  @if (guardada('fel_token')) { <span class="chip success">guardada</span> }
+                </label>
+                <input class="col-input" type="password" name="fel_token" [(ngModel)]="f.fel_token" maxlength="500" autocomplete="new-password"
+                       [placeholder]="guardada('fel_token') ? 'Dejar en blanco para conservar la actual' : ''"/>
+                @if (cfg?.fel_token_guardada && puedeE) {
+                  <label class="cfg-check field-hint"><input type="checkbox" name="borrar_fel_token" [(ngModel)]="borrar.fel_token"/> Borrar la guardada</label>
+                }
+              </div>
+              @if (esInfile) {
+                <div class="field span-2">
+                  <label class="col-label">
+                    Llave de certificación
+                    @if (guardada('fel_llave')) { <span class="chip success">guardada</span> }
+                  </label>
+                  <input class="col-input" type="password" name="fel_llave" [(ngModel)]="f.fel_llave" maxlength="500" autocomplete="new-password"
+                         [placeholder]="guardada('fel_llave') ? 'Dejar en blanco para conservar la actual' : ''"/>
+                  @if (cfg?.fel_llave_guardada && puedeE) {
+                    <label class="cfg-check field-hint"><input type="checkbox" name="borrar_fel_llave" [(ngModel)]="borrar.fel_llave"/> Borrar la guardada</label>
+                  }
+                </div>
+              }
+            </div>
+            <div class="field-hint">Las llaves se guardan cifradas y nunca se muestran.</div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">
+              Servicios del certificador
+              @if (esInfile && puedeE) { <button type="button" class="btn-col ghost sm" (click)="usarUrlsInfile()">Usar URLs de INFILE</button> }
+            </div>
+            <div class="cfg-stack">
+              <div class="field">
+                <label class="col-label">URL de firma</label>
+                <input class="col-input mono" name="fel_url_firma" [(ngModel)]="f.fel_url_firma" maxlength="250" placeholder="https://..."/>
+              </div>
+              <div class="field">
+                <label class="col-label">URL de certificación</label>
+                <input class="col-input mono" name="fel_url_certificacion" [(ngModel)]="f.fel_url_certificacion" maxlength="250" placeholder="https://..."/>
+              </div>
+              <div class="field">
+                <label class="col-label">URL de anulación</label>
+                <input class="col-input mono" name="fel_url_anulacion" [(ngModel)]="f.fel_url_anulacion" maxlength="250" placeholder="https://..."/>
+              </div>
+              @if (!esInfile) {
+                <div class="field">
+                  <label class="col-label">URL de firma de anulación</label>
+                  <input class="col-input mono" name="fel_url_firma_anulacion" [(ngModel)]="f.fel_url_firma_anulacion" maxlength="250" placeholder="https://..."/>
+                </div>
+              }
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Emisor</div>
+            <div class="field-grid">
+              <div class="field">
+                <label class="col-label">NIT del emisor</label>
+                <input class="col-input mono" name="fel_nit_emisor" [(ngModel)]="f.fel_nit_emisor" maxlength="20" [placeholder]="f.nit || 'NIT registrado en SAT'"/>
+                <div class="field-hint">Vacío = NIT de datos generales.</div>
+              </div>
+              <div class="field span-2">
+                <label class="col-label">Razón social (nombre del emisor)</label>
+                <input class="col-input" name="fel_nombre_emisor" [(ngModel)]="f.fel_nombre_emisor" maxlength="150" [placeholder]="f.nombre"/>
+                <div class="field-hint">Tal como está inscrita en SAT.</div>
+              </div>
+              <div class="field span-2">
+                <label class="col-label">Nombre comercial</label>
+                <input class="col-input" name="fel_nombre_comercial" [(ngModel)]="f.fel_nombre_comercial" maxlength="150" [placeholder]="f.nombre"/>
+              </div>
+              <div class="field">
+                <label class="col-label">Código de establecimiento</label>
+                <input class="col-input mono" name="fel_codigo_establecimiento" [(ngModel)]="f.fel_codigo_establecimiento" maxlength="5" inputmode="numeric"/>
+              </div>
+              <div class="field">
+                <label class="col-label">Afiliación al IVA</label>
+                <select class="col-input" name="fel_afiliacion_iva" [(ngModel)]="f.fel_afiliacion_iva">
+                  @for (a of afiliaciones; track a.valor) { <option [value]="a.valor">{{ a.texto }}</option> }
+                </select>
+              </div>
+              <div class="field">
+                <label class="col-label">Código postal</label>
+                <input class="col-input mono" name="fel_codigo_postal" [(ngModel)]="f.fel_codigo_postal" maxlength="10"/>
+              </div>
+              <div class="field">
+                <label class="col-label">Frases <span class="hint">opcional</span></label>
+                <input class="col-input mono" name="fel_frases" [(ngModel)]="f.fel_frases" maxlength="100" placeholder="Ej. 4,1"/>
+                <div class="field-hint">tipo,escenario separados por punto y coma.</div>
+              </div>
+            </div>
+            <div class="field-hint">La dirección, el municipio, el departamento y el correo del emisor se toman de Datos generales.</div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">
+              Consulta de NIT
+              @if (puedeE && !f.nit_consulta_url) { <button type="button" class="btn-col ghost sm" (click)="usarConsultaNit()">Usar servicio de SMABI</button> }
+            </div>
+            <p class="field-hint cfg-hint">Al escribir el NIT de quien paga se busca su nombre registrado para llenarlo automáticamente.</p>
+            <div class="field-grid">
+              <div class="field span-2">
+                <label class="col-label">URL del servicio</label>
+                <input class="col-input mono" name="nit_consulta_url" [(ngModel)]="f.nit_consulta_url" maxlength="250" placeholder="https://.../api/nit/"/>
+                <div class="field-hint">El NIT se agrega al final (o donde diga {{ '{' }}nit{{ '}' }}).</div>
+              </div>
+              <div class="field">
+                <label class="col-label">
+                  Llave (appKey)
+                  @if (guardada('nit_consulta_key')) { <span class="chip success">guardada</span> }
+                </label>
+                <input class="col-input" type="password" name="nit_consulta_key" [(ngModel)]="f.nit_consulta_key" maxlength="500" autocomplete="new-password"
+                       [placeholder]="guardada('nit_consulta_key') ? 'Dejar en blanco para conservar' : ''"/>
+                @if (cfg?.nit_consulta_key_guardada && puedeE) {
+                  <label class="cfg-check field-hint"><input type="checkbox" name="borrar_nit_consulta_key" [(ngModel)]="borrar.nit_consulta_key"/> Borrar la guardada</label>
+                }
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <label class="switch-wrap">
+              <input type="checkbox" [checked]="f.fel_activar_log === 1" (change)="f.fel_activar_log = $any($event.target).checked ? 1 : 0"/>
+              <span class="switch-slider"></span>
+              <span class="switch-label">
+                Guardar bitácora técnica de envíos exitosos
+                <span class="switch-desc">Los envíos con error siempre se guardan (XML, respuesta del firmador y del certificador) en la tabla fel_log</span>
+              </span>
+            </label>
+          </div>
         }
       </fieldset>
 

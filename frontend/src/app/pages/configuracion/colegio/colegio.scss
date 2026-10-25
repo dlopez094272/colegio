@@ -108,3 +108,6 @@ textarea.col-input { resize: vertical; min-height: 54px; font-family: inherit; }
   .cfg-logo { flex-direction: column; align-items: flex-start; }
   .cfg-prueba { flex-direction: column; }
 }
+
+// Botón de ayuda dentro del título de sección (URLs de INFILE, consulta de NIT)
+.form-section-title .btn-col { margin-left: auto; text-transform: none; letter-spacing: 0; }

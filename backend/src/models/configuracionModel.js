@@ -5,7 +5,7 @@ const { getCurrentTenant } = require('../config/tenantContext');
 /**
  * Configuración del colegio: una sola fila (idconfiguracion = 1) por tenant.
  * Datos generales y logotipo (login, dashboard, PDF), datos del contrato de
- * adhesión y servidor de correo saliente.
+ * adhesión, servidor de correo saliente y recibo electrónico SAT (FEL).
  */
 
 const CAMPOS_GENERALES = ['nombre', 'direccion', 'municipio', 'departamento', 'telefonos', 'email', 'nit', 'sitio_web'];
@@ -18,15 +18,23 @@ const CAMPOS_CORREO = [
   'smtp_host', 'smtp_puerto', 'smtp_seguro', 'smtp_usuario', 'smtp_remitente_nombre', 'smtp_remitente_email',
   'notificar_inscripcion', 'notificar_pago',
 ];
-const CAMPOS = [...CAMPOS_GENERALES, ...CAMPOS_CONTRATO, ...CAMPOS_CORREO];
+const CAMPOS_FEL = [
+  'fel_habilitado', 'fel_certificador', 'fel_certificador_nit', 'fel_usuario', 'fel_alias',
+  'fel_url_firma', 'fel_url_certificacion', 'fel_url_anulacion', 'fel_url_firma_anulacion',
+  'fel_nit_emisor', 'fel_nombre_emisor', 'fel_nombre_comercial', 'fel_codigo_establecimiento', 'fel_afiliacion_iva',
+  'fel_codigo_postal', 'fel_frases', 'fel_emitir_pago', 'fel_activar_log', 'nit_consulta_url',
+];
+const CAMPOS = [...CAMPOS_GENERALES, ...CAMPOS_CONTRATO, ...CAMPOS_CORREO, ...CAMPOS_FEL];
+/** Columnas cifradas (AES-256-GCM): nunca se devuelven al cliente. */
+const SECRETOS = ['smtp_password', 'fel_token', 'fel_llave', 'nit_consulta_key'];
 
 const PUBLIC_ROOT  = path.join(__dirname, '../../public/files');
 const STORAGE_ROOT = path.join(__dirname, '../../storage');
 
 const ConfiguracionModel = {
-  CAMPOS_GENERALES, CAMPOS_CONTRATO, CAMPOS_CORREO, CAMPOS,
+  CAMPOS_GENERALES, CAMPOS_CONTRATO, CAMPOS_CORREO, CAMPOS_FEL, CAMPOS, SECRETOS,
 
-  /** Fila completa (incluye smtp_password cifrada: no enviarla al cliente). */
+  /** Fila completa (incluye los SECRETOS cifrados: no enviarlos al cliente). */
   async get() {
     const [rows] = await pool.query(
       `SELECT c.*, DATE_FORMAT(c.representante_fecha_nacimiento, '%Y-%m-%d') AS representante_fecha_nacimiento
@@ -67,7 +75,8 @@ const ConfiguracionModel = {
    * en Configuración se toma de tenants.json → colegio (compatibilidad).
    */
   async datosColegio() {
-    const { smtp_password, ...c } = await this.get();
+    const c = await this.get();
+    for (const k of SECRETOS) delete c[k];
     const t = getCurrentTenant()?.colegio || {};
     return {
       ...c,

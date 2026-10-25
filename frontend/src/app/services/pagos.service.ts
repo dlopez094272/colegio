@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { ApiResponse, FormaPago, PagadorBusqueda, Pago, PageMeta, PendientesPago, ResultadoCorreo } from '../models';
+import { ApiResponse, FormaPago, PagadorBusqueda, Pago, PageMeta, PendientesPago, ResultadoCorreo, ResultadoFel } from '../models';
 import { environment } from '../../environments/environment';
 
 const BASE = `${environment.apiUrl}/api/pagos`;
@@ -17,6 +17,8 @@ export interface PagoPayload {
   cargos: { idinscripciones_cargos: number; exonerar_mora: boolean }[];
   /** Enviar el comprobante por correo. */
   notificar?: boolean;
+  /** Certificar el recibo electrónico SAT al registrar el pago. */
+  emitir_fel?: boolean;
 }
 
 function toParams(opts: Record<string, string | number | null | undefined>): string {
@@ -40,9 +42,18 @@ export class PagosService {
   }
 
   create(data: PagoPayload) {
-    return this.http.post<ApiResponse<any> & { id: number; numero: number; total: number; correo: ResultadoCorreo | null }>(BASE, data);
+    return this.http.post<ApiResponse<any> & { id: number; numero: number; total: number; fel: ResultadoFel | null; correo: ResultadoCorreo | null }>(BASE, data);
   }
-  anular(id: number, motivo: string) { return this.http.post<ApiResponse<any>>(`${BASE}/${id}/anular`, { motivo }); }
+  anular(id: number, motivo: string) { return this.http.post<ApiResponse<any> & { fel: ResultadoFel | null }>(`${BASE}/${id}/anular`, { motivo }); }
+
+  /** Certifica (o reintenta) el recibo electrónico SAT. */
+  certificarFel(id: number) { return this.http.post<ApiResponse<any> & ResultadoFel>(`${BASE}/${id}/fel`, {}); }
+  /** Reintenta la anulación ante SAT de un recibo ya anulado. */
+  anularFel(id: number) { return this.http.post<ApiResponse<any>>(`${BASE}/${id}/fel/anular`, {}); }
+  /** Nombre registrado del NIT (success: false si no se encontró). */
+  consultarNit(nit: string) {
+    return this.http.get<ApiResponse<{ nit: string; nombre: string; direccion: string }>>(`${BASE}/nit/${encodeURIComponent(nit)}`);
+  }
   /** (Re)envía el comprobante; sin correos usa el del pagador o los encargados. */
   notificar(id: number, correos?: string) {
     return this.http.post<ApiResponse<any> & { destinatarios: string[] }>(`${BASE}/${id}/notificar`, { correos });

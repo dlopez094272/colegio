@@ -205,3 +205,25 @@ tr.pg-anulado td:not(.row-menu-col) { opacity: .6; }
   .sub-txt { display: block; font-weight: 400; }
   &.off { opacity: .65; cursor: default; }
 }
+
+// ── Recibo electrónico SAT (FEL) ──
+.pg-fel { margin-top: 4px; font-size: 10.5px; padding: 2px 8px; }
+.pg-nit-spin { width: 11px; height: 11px; margin-left: 6px; }
+.pg-fel-box {
+  margin: 4px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--clr-border);
+  border-radius: 8px;
+  background: var(--clr-surface);
+  &.error { border-color: var(--clr-danger); }
+  .ficha-fields { margin: 8px 0 0; }
+}
+.pg-fel-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+}

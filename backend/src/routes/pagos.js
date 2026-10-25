@@ -8,6 +8,7 @@ router.use(auth);
 // Cobro: buscar padre/estudiante y traer sus cuotas pendientes
 router.get('/buscar',     cp('pagos', 'A'), ctrl.buscar);
 router.get('/pendientes', cp('pagos', 'A'), ctrl.pendientes);
+router.get('/nit/:nit',   cp('pagos', 'A'), ctrl.consultarNit);
 
 router.get('/',            cp('pagos', 'S'), ctrl.getAll);
 router.get('/:id',         cp('pagos', 'S'), ctrl.getById);
@@ -15,5 +16,9 @@ router.get('/:id/recibo',  cp('pagos', 'S'), ctrl.reciboPdf);
 router.post('/',           cp('pagos', 'A'), ctrl.create);
 router.post('/:id/anular', cp('pagos', 'D'), ctrl.anular);
 router.post('/:id/notificar', cp('pagos', 'A'), ctrl.notificar);
+
+// Recibo electrónico SAT (FEL)
+router.post('/:id/fel',        cp('pagos', 'A'), ctrl.certificarFel);
+router.post('/:id/fel/anular', cp('pagos', 'D'), ctrl.anularFel);
 
 module.exports = router;

@@ -79,6 +79,16 @@ Usuario inicial: **admin / admin123** (pide cambiar la contraseña al primer ing
   pago con el recibo adjunto (`utils/notificaciones.js`), automáticos al guardar o
   reenviables desde el menú de cada inscripción/recibo.
   BD existentes: ejecutar `database/migration_configuracion.sql`.
+- **Recibo electrónico SAT** (FEL, DTE tipo `RECI`; `utils/fel.js`): mismo flujo de
+  SMABI (firma → certificación) con INFILE o GRUPO CDS. Se configura en
+  Configuración › Recibo electrónico (credenciales cifradas como la contraseña SMTP).
+  Al cobrar se puede certificar en el momento o después desde el listado
+  (`POST /api/pagos/:id/fel`); anular un recibo certificado lo anula también ante
+  SAT (reintento: `POST /api/pagos/:id/fel/anular`). Cada línea de cuota (y su mora)
+  viaja como un ítem sin impuestos; el PDF del recibo imprime serie, número y
+  autorización. Errores (y, si se activa, envíos exitosos) quedan en `fel_log`.
+  Incluye consulta de nombre por NIT al cobrar (`GET /api/pagos/nit/:nit`).
+  BD existentes: ejecutar `database/migration_fel.sql`.
 - **Catálogo de estados civiles**, **usuarios**, **grupos/permisos** y
   **bitácora global**.
 

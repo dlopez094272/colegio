@@ -11,6 +11,8 @@ const SELECT = `
   SELECT pg.idpagos, pg.numero, DATE_FORMAT(pg.fecha_pago, '%Y-%m-%d') AS fecha_pago,
          pg.idpadres, pg.pagador_nombre, pg.pagador_nit, pg.forma_pago, pg.referencia, pg.observaciones,
          pg.subtotal, pg.mora, pg.total, pg.estado, pg.motivo_anulacion, pg.fecha_anulacion,
+         pg.fel_estado, pg.fel_serie, pg.fel_numero, pg.fel_uuid, pg.fel_fecha_emision, pg.fel_fecha_certificacion,
+         pg.fel_id_receptor, pg.fel_mensaje,
          pg.fecha_creacion, u.nombre_completo AS usuario_registro,
          (SELECT GROUP_CONCAT(DISTINCT ${sqlNombre('e')} SEPARATOR ', ')
             FROM pagos_detalle pd
@@ -36,6 +38,7 @@ const FILTER_FIELDS = {
   forma_pago: { column: 'pg.forma_pago', type: 'exact' },
   fecha_pago: { column: 'pg.fecha_pago', type: 'date' },
   idpadres:   { column: 'pg.idpadres',   type: 'exact' },
+  fel_estado: { column: 'pg.fel_estado', type: 'exact' },
   idinscripciones: { type: 'sql', sql: `EXISTS(SELECT 1 FROM pagos_detalle pd
                                           JOIN inscripciones_cargos ic ON ic.idinscripciones_cargos = pd.idinscripciones_cargos
                                          WHERE pd.idpagos = pg.idpagos AND ic.idinscripciones = ?)` },
@@ -262,6 +265,42 @@ const PagoModel = {
     await conn.query(
       `UPDATE pagos SET estado = 'Anulado', motivo_anulacion = ?, fecha_anulacion = NOW() WHERE idpagos = ?`,
       [motivo, id]
+    );
+  },
+
+  // ─── Recibo electrónico (FEL) ────────────────────────────────
+  /**
+   * Marca el pago como 'Procesando' si se puede certificar (sin emitir, con
+   * error, o un intento interrumpido hace más de 2 minutos). fel_fecha_certificacion
+   * guarda la hora del intento mientras dura. false = otro usuario lo está certificando.
+   */
+  async felTomar(idpagos) {
+    const [r] = await pool.query(
+      `UPDATE pagos SET fel_estado = 'Procesando', fel_fecha_certificacion = NOW()
+        WHERE idpagos = ? AND estado = 'Activo'
+          AND (fel_estado IS NULL OR fel_estado = 'Error'
+               OR (fel_estado = 'Procesando' AND fel_fecha_certificacion < NOW() - INTERVAL 2 MINUTE))`,
+      [idpagos]
+    );
+    return r.affectedRows === 1;
+  },
+
+  /** Error de certificación ('Error'), anulación exitosa ('Anulado') o fallida ('Error al anular'). */
+  async felEstado(idpagos, estado, mensaje) {
+    await pool.query(
+      `UPDATE pagos SET fel_estado = ?, fel_mensaje = ?,
+              fel_fecha_certificacion = IF(? = 'Error', NULL, fel_fecha_certificacion)
+        WHERE idpagos = ?`,
+      [estado, String(mensaje || '').substring(0, 499), estado, idpagos]
+    );
+  },
+
+  async felCertificado(idpagos, { serie, numero, uuid, fecha_emision, id_receptor, mensaje }) {
+    await pool.query(
+      `UPDATE pagos SET fel_estado = 'Certificado', fel_serie = ?, fel_numero = ?, fel_uuid = ?, fel_fecha_emision = ?,
+              fel_fecha_certificacion = NOW(), fel_id_receptor = ?, fel_mensaje = ?
+        WHERE idpagos = ?`,
+      [serie, numero, uuid, fecha_emision, id_receptor, mensaje, idpagos]
     );
   },
 };

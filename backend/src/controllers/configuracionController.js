@@ -7,6 +7,7 @@ const { registrarBitacora } = require('../utils/bitacora');
 const { cifrar } = require('../utils/secreto');
 const { correoDisponible } = require('../config/mailer');
 const { correoPrueba, leerCorreos } = require('../utils/notificaciones');
+const { CERTIFICADORES } = require('../utils/fel');
 
 // Logotipo: público (se muestra en el login, antes de iniciar sesión) en
 // files/<tenant>/colegio/. Firma del representante: privada en
@@ -33,12 +34,24 @@ const MAX = {
   representante_nombre: 150, representante_titulo: 20, representante_estado_civil: 30, representante_nacionalidad: 60,
   representante_profesion: 150, representante_dpi: 20, acreditacion: 400, resolucion_diaco: 300, autorizacion_servicio: 300,
   jornada: 30, smtp_host: 150, smtp_usuario: 150, smtp_remitente_nombre: 150, smtp_remitente_email: 150,
+  fel_certificador_nit: 20, fel_usuario: 100, fel_alias: 100, fel_url_firma: 250, fel_url_certificacion: 250,
+  fel_url_anulacion: 250, fel_url_firma_anulacion: 250, fel_nit_emisor: 20, fel_nombre_emisor: 150,
+  fel_nombre_comercial: 150, fel_codigo_postal: 10, fel_frases: 100, nit_consulta_url: 250,
 };
-const BOOLEANOS = ['smtp_seguro', 'notificar_inscripcion', 'notificar_pago'];
+const BOOLEANOS = ['smtp_seguro', 'notificar_inscripcion', 'notificar_pago', 'fel_habilitado', 'fel_emitir_pago', 'fel_activar_log'];
+const URLS = ['fel_url_firma', 'fel_url_certificacion', 'fel_url_anulacion', 'fel_url_firma_anulacion', 'nit_consulta_url'];
+// Columnas NOT NULL con valor por defecto si se dejan vacías
+const POR_DEFECTO = { fel_codigo_establecimiento: '1', fel_afiliacion_iva: 'GEN', fel_codigo_postal: '01001' };
+const AFILIACIONES_IVA = ['GEN', 'PEQ', 'EXE'];
+const MAX_SECRETO = 500;
 const ETIQUETAS = {
   nombre: 'El nombre del colegio', email: 'El correo del colegio', representante_dpi: 'El DPI del representante',
   representante_fecha_nacimiento: 'La fecha de nacimiento del representante', smtp_puerto: 'El puerto SMTP',
   smtp_remitente_email: 'El correo del remitente',
+  fel_url_firma: 'La URL de firma', fel_url_certificacion: 'La URL de certificación', fel_url_anulacion: 'La URL de anulación',
+  fel_url_firma_anulacion: 'La URL de firma de anulación', nit_consulta_url: 'La URL de consulta de NIT',
+  fel_nit_emisor: 'El NIT del emisor', fel_certificador_nit: 'El NIT del certificador',
+  fel_nombre_emisor: 'La razón social', fel_nombre_comercial: 'El nombre comercial',
 };
 
 const texto = v => { const s = String(v ?? '').trim().replace(/\s+/g, ' '); return s || null; };
@@ -50,7 +63,7 @@ function leerConfiguracion(body) {
     if (!(c in body)) continue;
     if (BOOLEANOS.includes(c)) data[c] = body[c] ? 1 : 0;
     else if (c === 'smtp_puerto') data[c] = body[c] === '' || body[c] === null ? null : Number(body[c]);
-    else data[c] = texto(body[c]);
+    else data[c] = texto(body[c]) ?? POR_DEFECTO[c] ?? null;
   }
   if ('nombre' in data && !data.nombre) return { error: 'El nombre del colegio es requerido' };
   for (const [c, max] of Object.entries(MAX)) {
@@ -72,13 +85,48 @@ function leerConfiguracion(body) {
   if (data.smtp_puerto !== undefined && data.smtp_puerto !== null && !(Number.isInteger(data.smtp_puerto) && data.smtp_puerto > 0 && data.smtp_puerto < 65536))
     return { error: `${ETIQUETAS.smtp_puerto} no es válido` };
   if (data.nit) data.nit = data.nit.toUpperCase().replace(/\s/g, '');
+
+  // Recibo electrónico (FEL)
+  for (const c of ['fel_nit_emisor', 'fel_certificador_nit']) {
+    if (data[c]) data[c] = data[c].toUpperCase().replace(/[\s-]/g, '');
+  }
+  if (data.fel_certificador && !CERTIFICADORES.includes(data.fel_certificador)) return { error: 'El certificador FEL no es válido' };
+  if (data.fel_habilitado && 'fel_certificador' in data && !data.fel_certificador)
+    return { error: 'Seleccione el certificador para habilitar el recibo electrónico' };
+  for (const c of URLS) {
+    if (data[c] && !/^https?:\/\/\S+$/i.test(data[c])) return { error: `${ETIQUETAS[c]} no es válida` };
+  }
+  if (data.fel_codigo_establecimiento && !/^\d{1,5}$/.test(data.fel_codigo_establecimiento))
+    return { error: 'El código de establecimiento debe ser numérico' };
+  if (data.fel_afiliacion_iva && !AFILIACIONES_IVA.includes(data.fel_afiliacion_iva)) return { error: 'La afiliación al IVA no es válida' };
+  if (data.fel_frases) {
+    data.fel_frases = data.fel_frases.replace(/\s/g, '');
+    if (!/^\d+,\d+(;\d+,\d+)*$/.test(data.fel_frases)) return { error: 'Las frases deben tener el formato tipo,escenario;tipo,escenario (ej. 4,1)' };
+  }
   return { data };
 }
 
-/** Configuración para el cliente: sin la contraseña SMTP ni rutas privadas. */
+/**
+ * Secretos del body: valor nuevo → se cifra; <campo>_borrar → se elimina;
+ * vacío → se conserva el guardado.
+ */
+function leerSecretos(body) {
+  const data = {};
+  for (const k of ConfiguracionModel.SECRETOS) {
+    // La contraseña SMTP se guarda tal cual (puede llevar espacios); las llaves FEL se recortan
+    const v = typeof body[k] !== 'string' ? '' : k === 'smtp_password' ? body[k] : body[k].trim();
+    if (v.length > MAX_SECRETO) return { error: `El valor de ${k.replace(/_/g, ' ')} es demasiado largo` };
+    if (v) data[k] = cifrar(v);
+    else if (body[`${k}_borrar`]) data[k] = null;
+  }
+  return { data };
+}
+
+/** Configuración para el cliente: sin secretos (solo si están guardados) ni rutas privadas. */
 function paraCliente(c) {
-  const { smtp_password, firma_representante, ...resto } = c;
-  return { ...resto, smtp_password_guardada: !!smtp_password, tiene_firma: !!firma_representante };
+  const { firma_representante, ...resto } = c;
+  for (const k of ConfiguracionModel.SECRETOS) { resto[`${k}_guardada`] = !!resto[k]; delete resto[k]; }
+  return { ...resto, tiene_firma: !!firma_representante };
 }
 
 function carpeta(req, raiz) {
@@ -98,6 +146,7 @@ const ctrl = {
   async resumen(req, res, next) {
     try {
       const c = await ConfiguracionModel.datosColegio();
+      const { nit_consulta_key } = await ConfiguracionModel.get();
       res.json({
         success: true,
         data: {
@@ -105,6 +154,8 @@ const ctrl = {
           telefonos: c.telefonos, email: c.email, sitio_web: c.sitio_web,
           correo_habilitado: await correoDisponible(),
           notificar_inscripcion: !!c.notificar_inscripcion, notificar_pago: !!c.notificar_pago,
+          fel_habilitado: !!(c.fel_habilitado && c.fel_certificador), fel_emitir_pago: !!c.fel_emitir_pago,
+          nit_consulta: !!(c.nit_consulta_url && nit_consulta_key),
         },
       });
     } catch (err) { next(err); }
@@ -117,27 +168,32 @@ const ctrl = {
     } catch (err) { next(err); }
   },
 
-  // PUT /api/configuracion   { ...campos, smtp_password?: nueva, smtp_password_borrar?: true }
+  // PUT /api/configuracion   { ...campos, <secreto>?: nuevo valor, <secreto>_borrar?: true }
+  //   secretos: smtp_password, fel_token, fel_llave, nit_consulta_key
   async update(req, res, next) {
     try {
       const { data, error } = leerConfiguracion(req.body);
       if (error) return res.status(400).json({ message: error });
       const pass = typeof req.body.smtp_password === 'string' ? req.body.smtp_password : '';
       if (pass.length > 200) return res.status(400).json({ message: 'La contraseña SMTP es demasiado larga' });
-      if (pass) data.smtp_password = cifrar(pass);
-      else if (req.body.smtp_password_borrar) data.smtp_password = null;
+      const secretos = leerSecretos(req.body);
+      if (secretos.error) return res.status(400).json({ message: secretos.error });
+      Object.assign(data, secretos.data);
 
       const antes = await ConfiguracionModel.get();
       await ConfiguracionModel.update(data);
 
-      // Bitácora: solo lo que cambió (la contraseña se registra sin su valor)
+      // Bitácora: solo lo que cambió (los secretos se registran sin su valor)
       const valoresAntes = {}, valoresDespues = {};
       for (const [k, v] of Object.entries(data)) {
-        if (k === 'smtp_password') continue;
+        if (ConfiguracionModel.SECRETOS.includes(k)) {
+          valoresAntes[k] = antes[k] ? '(guardada)' : null;
+          valoresDespues[k] = v ? '(cambiada)' : null;
+          continue;
+        }
         const a = antes[k] instanceof Date ? antes[k].toISOString().substring(0, 10) : antes[k];
         if (String(a ?? '') !== String(v ?? '')) { valoresAntes[k] = a ?? null; valoresDespues[k] = v; }
       }
-      if ('smtp_password' in data) { valoresAntes.smtp_password = antes.smtp_password ? '(guardada)' : null; valoresDespues.smtp_password = data.smtp_password ? '(cambiada)' : null; }
       if (Object.keys(valoresDespues).length) {
         await registrarBitacora({
           tabla: 'configuracion', idregistro: 1, accion: 'MODIFICAR',

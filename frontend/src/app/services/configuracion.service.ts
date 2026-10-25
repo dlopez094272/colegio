@@ -6,9 +6,18 @@ import { urlArchivo } from './personas.service';
 
 const BASE = `${environment.apiUrl}/api/configuracion`;
 
-export type ConfiguracionPayload = Partial<Omit<Configuracion, 'smtp_password_guardada' | 'tiene_firma' | 'logo' | 'fecha_modificacion'>> & {
+type Guardada = 'smtp_password_guardada' | 'fel_token_guardada' | 'fel_llave_guardada' | 'nit_consulta_key_guardada';
+
+/** Secretos: se envía el valor nuevo (vacío = conservar) o <secreto>_borrar. */
+export type ConfiguracionPayload = Partial<Omit<Configuracion, Guardada | 'tiene_firma' | 'logo' | 'fecha_modificacion'>> & {
   smtp_password?: string;
   smtp_password_borrar?: boolean;
+  fel_token?: string;
+  fel_token_borrar?: boolean;
+  fel_llave?: string;
+  fel_llave_borrar?: boolean;
+  nit_consulta_key?: string;
+  nit_consulta_key_borrar?: boolean;
 };
 
 /**

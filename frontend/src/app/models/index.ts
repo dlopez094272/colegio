@@ -463,11 +463,31 @@ export interface Pago {
   estado: 'Activo' | 'Anulado';
   motivo_anulacion: string | null;
   fecha_anulacion: string | null;
+  /** Recibo electrónico SAT: null = no emitido. */
+  fel_estado: FelEstado | null;
+  fel_serie: string | null;
+  fel_numero: string | null;
+  fel_uuid: string | null;
+  fel_fecha_certificacion: string | null;
+  fel_id_receptor: string | null;
+  fel_mensaje: string | null;
   fecha_creacion: string;
   usuario_registro: string | null;
   estudiantes: string | null;
   lineas: number;
   detalle?: PagoDetalle[];
+}
+
+export type FelEstado = 'Procesando' | 'Certificado' | 'Error' | 'Anulado' | 'Error al anular';
+
+/** Resultado de certificar (o anular) el recibo electrónico junto con el pago. */
+export interface ResultadoFel {
+  certificado?: boolean;
+  anulado?: boolean;
+  serie?: string;
+  numero?: string;
+  uuid?: string;
+  error?: string;
 }
 
 export interface PagoDetalle {
@@ -536,7 +556,14 @@ export interface ColegioResumen {
   correo_habilitado?: boolean;
   notificar_inscripcion?: boolean;
   notificar_pago?: boolean;
+  /** Recibo electrónico SAT habilitado y valor por defecto al cobrar. */
+  fel_habilitado?: boolean;
+  fel_emitir_pago?: boolean;
+  /** Hay servicio de consulta de NIT configurado. */
+  nit_consulta?: boolean;
 }
+
+export type CertificadorFel = 'INFILE' | 'GRUPO CDS';
 
 export interface Configuracion {
   nombre: string;
@@ -567,7 +594,29 @@ export interface Configuracion {
   smtp_remitente_email: string | null;
   notificar_inscripcion: number;
   notificar_pago: number;
+  fel_habilitado: number;
+  fel_certificador: CertificadorFel | null;
+  fel_certificador_nit: string | null;
+  fel_usuario: string | null;
+  fel_alias: string | null;
+  fel_url_firma: string | null;
+  fel_url_certificacion: string | null;
+  fel_url_anulacion: string | null;
+  fel_url_firma_anulacion: string | null;
+  fel_nit_emisor: string | null;
+  fel_nombre_emisor: string | null;
+  fel_nombre_comercial: string | null;
+  fel_codigo_establecimiento: string;
+  fel_afiliacion_iva: string;
+  fel_codigo_postal: string;
+  fel_frases: string | null;
+  fel_emitir_pago: number;
+  fel_activar_log: number;
+  nit_consulta_url: string | null;
   smtp_password_guardada: boolean;
+  fel_token_guardada: boolean;
+  fel_llave_guardada: boolean;
+  nit_consulta_key_guardada: boolean;
   tiene_firma: boolean;
   fecha_modificacion: string | null;
 }

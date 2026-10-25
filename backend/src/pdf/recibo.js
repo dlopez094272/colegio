@@ -2,6 +2,14 @@ const B = require('./base');
 
 const numeroRecibo = n => String(n).padStart(6, '0');
 
+/** DATETIME de MySQL (Date) → dd/mm/aaaa hh:mm */
+function fechaHora(d) {
+  const f = d instanceof Date ? d : new Date(d);
+  if (isNaN(f)) return String(d);
+  const p = n => String(n).padStart(2, '0');
+  return `${p(f.getDate())}/${p(f.getMonth() + 1)}/${f.getFullYear()} ${p(f.getHours())}:${p(f.getMinutes())}`;
+}
+
 /**
  * Recibo de pago — FORMATO ESTÁNDAR PROVISIONAL.
  * @param {object} pago    - PagoModel.findById
@@ -18,6 +26,25 @@ function generarRecibo(pago, detalle, colegio = null) {
     ['Forma de pago', pago.forma_pago + (pago.referencia ? ` · Ref. ${pago.referencia}` : '')],
     ['Fecha de pago', B.fechaLarga(pago.fecha_pago)],
   ]);
+
+  // Recibo electrónico SAT: datos de la certificación (representación gráfica del DTE)
+  if (pago.fel_uuid) {
+    B.seccion(doc, 'Documento tributario electrónico — Recibo');
+    const c = colegio || {};
+    B.campos(doc, [
+      ['Serie', pago.fel_serie],
+      ['Número', pago.fel_numero],
+      ['Número de autorización', pago.fel_uuid],
+      ['Fecha de certificación', pago.fel_fecha_certificacion ? fechaHora(pago.fel_fecha_certificacion) : ''],
+      ['Emisor', `${c.fel_nombre_emisor || c.nombre || ''} · NIT ${c.fel_nit_emisor || c.nit || ''}`],
+      ['NIT del receptor', pago.fel_id_receptor],
+      ['Certificador', [c.fel_certificador, c.fel_certificador_nit && `NIT ${c.fel_certificador_nit}`].filter(Boolean).join(' · ')],
+    ]);
+    if (pago.fel_estado === 'Anulado') {
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#B23B3B').text('DOCUMENTO ELECTRÓNICO ANULADO ANTE SAT');
+      doc.moveDown(0.3);
+    }
+  }
 
   B.seccion(doc, 'Detalle');
   const hayMora = detalle.some(d => Number(d.mora_pagada) > 0 || d.mora_exonerada);

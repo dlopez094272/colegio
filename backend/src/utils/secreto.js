@@ -1,10 +1,11 @@
 const crypto = require('crypto');
 const { getCurrentTenant } = require('../config/tenantContext');
 
-// Cifrado simétrico para secretos guardados en la BD (contraseña SMTP).
+// Cifrado simétrico para secretos guardados en la BD (contraseña SMTP,
+// llaves del certificador FEL y de la consulta de NIT).
 // La clave se deriva del jwtSecret del tenant: un respaldo de la BD por sí
 // solo no expone la contraseña. Si se cambia el jwtSecret hay que volver a
-// ingresar la contraseña en Configuración.
+// ingresar las contraseñas y llaves en Configuración.
 
 function clave() {
   const base = getCurrentTenant()?.jwtSecret;
