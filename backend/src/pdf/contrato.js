@@ -268,8 +268,8 @@ function hojaDos(doc) {
     [{ t: 'b) COLEGIATURA MENSUAL:\n(10 CUOTAS EN LOS MESES DE ENERO A OCTUBRE)', size: 7 }, { t: 'Q.325.00 / Q.350.00', b: true, size: 10 }],
   ]);
 
-  parrafo(doc, ['Cuotas debidamente autorizadas por el Ministerio de Educación, por medio de la Resolución Administrativa No. 837-2022 ' +
-    'DIRECCIÓN DEPARTAMENTAL DE EDUCACIÓN DE SAN MARCOS, de fecha 5 de Septiembre de 2022'], { align: 'left' });
+  parrafo(doc, ['Cuotas debidamente autorizadas por el Ministerio de Educación, por medio de la Resolución Administrativa No. 1074-2025 ' +
+    'DIRECCIÓN DEPARTAMENTAL DE EDUCACIÓN DE SAN MARCOS, de fecha 24 de Junio de 2025'], { align: 'left' });
 
   cuadro(doc, [0.62, 0.19, 0.19], [
     [{ t: 'NIVEL DE EDUCACIÓN', b: true, size: 7 }, { t: 'INSCRIPCIÓN', b: true, size: 7 }, { t: 'COLEGIATURA\nMENSUAL', b: true, size: 7 }],
