@@ -6,13 +6,15 @@ const { sqlNombre } = require('../utils/persona');
 /**
  * Pagos (recibos). Cada línea de pagos_detalle liquida un cargo completo del
  * estado de cuenta, con la mora calculada a la fecha de pago.
+ *
+ * Documentos electrónicos SAT (pagos_fel): un pago puede llevar dos.
+ *   RECI → cuotas con emite_recibo (inscripción, colegiatura)
+ *   FACT → la mora de todas las líneas y las cuotas sin emite_recibo
  */
 const SELECT = `
   SELECT pg.idpagos, pg.numero, DATE_FORMAT(pg.fecha_pago, '%Y-%m-%d') AS fecha_pago,
          pg.idpadres, pg.pagador_nombre, pg.pagador_nit, pg.forma_pago, pg.referencia, pg.observaciones,
          pg.subtotal, pg.mora, pg.total, pg.estado, pg.motivo_anulacion, pg.fecha_anulacion,
-         pg.fel_estado, pg.fel_serie, pg.fel_numero, pg.fel_uuid, pg.fel_fecha_emision, pg.fel_fecha_certificacion,
-         pg.fel_id_receptor, pg.fel_mensaje,
          pg.fecha_creacion, u.nombre_completo AS usuario_registro,
          (SELECT GROUP_CONCAT(DISTINCT ${sqlNombre('e')} SEPARATOR ', ')
             FROM pagos_detalle pd
@@ -20,7 +22,11 @@ const SELECT = `
             JOIN inscripciones i ON i.idinscripciones = ic.idinscripciones
             JOIN estudiantes e ON e.idestudiantes = i.idestudiantes
            WHERE pd.idpagos = pg.idpagos) AS estudiantes,
-         (SELECT COUNT(*) FROM pagos_detalle pd WHERE pd.idpagos = pg.idpagos) AS lineas
+         (SELECT COUNT(*) FROM pagos_detalle pd WHERE pd.idpagos = pg.idpagos) AS lineas,
+         (SELECT COALESCE(SUM(IF(pd.emite_recibo, pd.monto, 0)), 0)
+            FROM pagos_detalle pd WHERE pd.idpagos = pg.idpagos) AS total_recibo,
+         (SELECT COALESCE(SUM(pd.mora + IF(pd.emite_recibo, 0, pd.monto)), 0)
+            FROM pagos_detalle pd WHERE pd.idpagos = pg.idpagos) AS total_factura
     FROM pagos pg
     LEFT JOIN usuarios u ON u.idusuarios = pg.idusuarios`;
 
@@ -38,7 +44,7 @@ const FILTER_FIELDS = {
   forma_pago: { column: 'pg.forma_pago', type: 'exact' },
   fecha_pago: { column: 'pg.fecha_pago', type: 'date' },
   idpadres:   { column: 'pg.idpadres',   type: 'exact' },
-  fel_estado: { column: 'pg.fel_estado', type: 'exact' },
+  fel_estado: { type: 'sql', sql: 'EXISTS(SELECT 1 FROM pagos_fel pf WHERE pf.idpagos = pg.idpagos AND pf.estado = ?)' },
   idinscripciones: { type: 'sql', sql: `EXISTS(SELECT 1 FROM pagos_detalle pd
                                           JOIN inscripciones_cargos ic ON ic.idinscripciones_cargos = pd.idinscripciones_cargos
                                          WHERE pd.idpagos = pg.idpagos AND ic.idinscripciones = ?)` },
@@ -72,6 +78,23 @@ const CARGO_INSC_FROM = `
     JOIN cuotas_ciclos cc ON cc.idcuotas_ciclos = ic.idcuotas_ciclos
     JOIN cuotas cu        ON cu.idcuotas = cc.idcuotas`;
 
+/**
+ * Documentos electrónicos que lleva el pago según sus líneas (RECI y/o FACT),
+ * con el estado de su certificación (estado null = aún no se ha intentado).
+ * Un documento certificado conserva el total con que se certificó.
+ */
+function armarDocumentos(pago, filas) {
+  const esperados = [['RECI', Number(pago.total_recibo)], ['FACT', Number(pago.total_factura)]];
+  return esperados
+    .map(([tipo, total]) => {
+      const f = filas.find(d => d.idpagos === pago.idpagos && d.tipo === tipo);
+      // Sin líneas para el documento solo cuenta uno ya emitido ante SAT
+      if (!(total > 0) && !f?.uuid) return null;
+      return { ...(f || { tipo, estado: null }), total: f?.total ?? total };
+    })
+    .filter(Boolean);
+}
+
 const PagoModel = {
   async getAll(opts = {}) {
     const { page, pageSize, search, sortField, sortDir, ...filtros } = opts;
@@ -91,18 +114,23 @@ const PagoModel = {
       params, page, pageSize,
     });
     r.meta.total_cobrado = Number(totales.total_cobrado);
+    const docs = await PagoModel.documentosDe(r.data.map(p => p.idpagos));
+    for (const p of r.data) p.documentos = armarDocumentos(p, docs);
     return r;
   },
 
+  /** Pago con sus documentos electrónicos (ver armarDocumentos). */
   async findById(id, conn = pool) {
     const [rows] = await conn.query(`${SELECT} WHERE pg.idpagos = ?`, [id]);
-    return rows[0] || null;
+    if (!rows[0]) return null;
+    rows[0].documentos = armarDocumentos(rows[0], await PagoModel.documentosDe([rows[0].idpagos], conn));
+    return rows[0];
   },
 
   async detalle(idpagos, conn = pool) {
     const [rows] = await conn.query(
       `SELECT pd.idpagos_detalle, pd.monto AS monto_pagado, pd.mora AS mora_pagada, pd.mora_exonerada, pd.total AS total_linea,
-              ${CARGO_INSC_COLS}
+              pd.emite_recibo, ${CARGO_INSC_COLS}
          FROM pagos_detalle pd
          JOIN inscripciones_cargos ic ON ic.idinscripciones_cargos = pd.idinscripciones_cargos
          JOIN inscripciones i ON i.idinscripciones = ic.idinscripciones
@@ -218,7 +246,7 @@ const PagoModel = {
   async pendientes(idsEstudiantes) {
     if (!idsEstudiantes.length) return [];
     const [rows] = await pool.query(
-      `SELECT ${CARGO_INSC_COLS}
+      `SELECT ${CARGO_INSC_COLS}, cu.emite_recibo
          ${CARGO_INSC_FROM}
         WHERE i.idestudiantes IN (?) AND i.estado = 'Activa' AND ic.estado = 'Pendiente'
         ORDER BY e.primer_apellido, e.primer_nombre, i.ciclo, ic.fecha_vencimiento, cu.orden, ic.numero_cobro`,
@@ -235,7 +263,7 @@ const PagoModel = {
   /** Cargos a cobrar, bloqueados hasta el commit (evita cobrar dos veces el mismo cargo). */
   async cargosParaCobrar(conn, ids) {
     const [rows] = await conn.query(
-      `SELECT ${CARGO_INSC_COLS}, i.estado AS estado_inscripcion
+      `SELECT ${CARGO_INSC_COLS}, cu.emite_recibo, i.estado AS estado_inscripcion
          ${CARGO_INSC_FROM}
         WHERE ic.idinscripciones_cargos IN (?)
         FOR UPDATE`,
@@ -251,8 +279,8 @@ const PagoModel = {
 
   async insertarDetalle(conn, idpagos, lineas) {
     await conn.query(
-      `INSERT INTO pagos_detalle (idpagos, idinscripciones_cargos, monto, mora, mora_exonerada, total) VALUES ?`,
-      [lineas.map(l => [idpagos, l.idinscripciones_cargos, l.monto, l.mora, l.mora_exonerada ? 1 : 0, l.total])]
+      `INSERT INTO pagos_detalle (idpagos, idinscripciones_cargos, monto, mora, mora_exonerada, emite_recibo, total) VALUES ?`,
+      [lineas.map(l => [idpagos, l.idinscripciones_cargos, l.monto, l.mora, l.mora_exonerada ? 1 : 0, l.emite_recibo ? 1 : 0, l.total])]
     );
   },
 
@@ -268,39 +296,55 @@ const PagoModel = {
     );
   },
 
-  // ─── Recibo electrónico (FEL) ────────────────────────────────
-  /**
-   * Marca el pago como 'Procesando' si se puede certificar (sin emitir, con
-   * error, o un intento interrumpido hace más de 2 minutos). fel_fecha_certificacion
-   * guarda la hora del intento mientras dura. false = otro usuario lo está certificando.
-   */
-  async felTomar(idpagos) {
-    const [r] = await pool.query(
-      `UPDATE pagos SET fel_estado = 'Procesando', fel_fecha_certificacion = NOW()
-        WHERE idpagos = ? AND estado = 'Activo'
-          AND (fel_estado IS NULL OR fel_estado = 'Error'
-               OR (fel_estado = 'Procesando' AND fel_fecha_certificacion < NOW() - INTERVAL 2 MINUTE))`,
-      [idpagos]
+  // ─── Documentos electrónicos (FEL) ───────────────────────────
+  async documentosDe(ids, conn = pool) {
+    if (!ids.length) return [];
+    const [rows] = await conn.query(
+      `SELECT idpagos_fel, idpagos, tipo, estado, dte, total, iva, serie, numero, uuid, fecha_emision,
+              fecha_certificacion, id_receptor, mensaje
+         FROM pagos_fel WHERE idpagos IN (?) ORDER BY FIELD(tipo, 'RECI', 'FACT')`,
+      [ids]
     );
-    return r.affectedRows === 1;
+    return rows.map(r => ({ ...r, total: r.total === null ? null : Number(r.total), iva: r.iva === null ? null : Number(r.iva) }));
+  },
+
+  /**
+   * Marca el documento como 'Procesando' si se puede certificar (nuevo, con
+   * error, o un intento interrumpido hace más de 2 minutos). fecha_certificacion
+   * guarda la hora del intento mientras dura. false = otro usuario lo está certificando.
+   * @returns {Promise<number|false>} idpagos_fel
+   */
+  async felTomar(idpagos, tipo) {
+    await pool.query(`INSERT IGNORE INTO pagos_fel (idpagos, tipo) VALUES (?, ?)`, [idpagos, tipo]);
+    const [r] = await pool.query(
+      `UPDATE pagos_fel pf JOIN pagos pg ON pg.idpagos = pf.idpagos
+          SET pf.estado = 'Procesando', pf.fecha_certificacion = NOW()
+        WHERE pf.idpagos = ? AND pf.tipo = ? AND pg.estado = 'Activo'
+          AND (pf.estado IN ('Pendiente', 'Error')
+               OR (pf.estado = 'Procesando' AND pf.fecha_certificacion < NOW() - INTERVAL 2 MINUTE))`,
+      [idpagos, tipo]
+    );
+    if (r.affectedRows !== 1) return false;
+    const [[f]] = await pool.query('SELECT idpagos_fel FROM pagos_fel WHERE idpagos = ? AND tipo = ?', [idpagos, tipo]);
+    return f.idpagos_fel;
   },
 
   /** Error de certificación ('Error'), anulación exitosa ('Anulado') o fallida ('Error al anular'). */
-  async felEstado(idpagos, estado, mensaje) {
+  async felEstado(idpagos, tipo, estado, mensaje) {
     await pool.query(
-      `UPDATE pagos SET fel_estado = ?, fel_mensaje = ?,
-              fel_fecha_certificacion = IF(? = 'Error', NULL, fel_fecha_certificacion)
-        WHERE idpagos = ?`,
-      [estado, String(mensaje || '').substring(0, 499), estado, idpagos]
+      `UPDATE pagos_fel SET estado = ?, mensaje = ?,
+              fecha_certificacion = IF(? = 'Error', NULL, fecha_certificacion)
+        WHERE idpagos = ? AND tipo = ?`,
+      [estado, String(mensaje || '').substring(0, 499), estado, idpagos, tipo]
     );
   },
 
-  async felCertificado(idpagos, { serie, numero, uuid, fecha_emision, id_receptor, mensaje }) {
+  async felCertificado(idpagos, tipo, { dte, total, iva, serie, numero, uuid, fecha_emision, id_receptor, mensaje }) {
     await pool.query(
-      `UPDATE pagos SET fel_estado = 'Certificado', fel_serie = ?, fel_numero = ?, fel_uuid = ?, fel_fecha_emision = ?,
-              fel_fecha_certificacion = NOW(), fel_id_receptor = ?, fel_mensaje = ?
-        WHERE idpagos = ?`,
-      [serie, numero, uuid, fecha_emision, id_receptor, mensaje, idpagos]
+      `UPDATE pagos_fel SET estado = 'Certificado', dte = ?, total = ?, iva = ?, serie = ?, numero = ?, uuid = ?,
+              fecha_emision = ?, fecha_certificacion = NOW(), id_receptor = ?, mensaje = ?
+        WHERE idpagos = ? AND tipo = ?`,
+      [dte, total, iva, serie, numero, uuid, fecha_emision, id_receptor, mensaje, idpagos, tipo]
     );
   },
 };

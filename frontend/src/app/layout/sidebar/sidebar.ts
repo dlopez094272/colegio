@@ -11,6 +11,7 @@ export interface NavItem {
   route: string;
   tabla?: string;       // tabla en seguridad_ugrights; sin permiso "Listar" el ítem se oculta
   adminOnly?: boolean;  // solo Super Administrador
+  group?: string;       // subtítulo dentro de la sección (se muestra al cambiar de grupo)
 }
 
 export interface NavSection {
@@ -49,33 +50,23 @@ export class Sidebar implements OnInit {
       icon: 'cash',
       items: [
         { label: 'Pagos',  icon: 'receipt', route: '/finanzas/pagos',  tabla: 'pagos'  },
-        { label: 'Cuotas', icon: 'coins',   route: '/finanzas/cuotas', tabla: 'cuotas' },
-      ],
-    },
-    {
-      section: 'CATÁLOGOS',
-      icon: 'book',
-      items: [
-        { label: 'Estados civiles', icon: 'tag', route: '/catalogos/estados-civiles', tabla: 'estados_civiles' },
-        { label: 'Formaciones académicas', icon: 'award', route: '/catalogos/formaciones-academicas', tabla: 'formaciones_academicas' },
-        { label: 'Categorías de archivos', icon: 'folder', route: '/catalogos/categorias-archivos', tabla: 'categorias_archivos' },
       ],
     },
     {
       section: 'CONFIGURACIÓN',
       icon: 'settings',
       items: [
-        { label: 'Datos del colegio', icon: 'settings', route: '/configuracion/colegio', tabla: 'configuracion' },
-      ],
-    },
-    {
-      section: 'SEGURIDAD',
-      icon: 'lock',
-      items: [
-        { label: 'Usuarios',          icon: 'user',        route: '/seguridad/usuarios', tabla: 'usuarios' },
-        { label: 'Usuarios / Grupos', icon: 'shield-user', route: '/seguridad/grupos',   adminOnly: true   },
-        { label: 'Permisos',          icon: 'shield',      route: '/seguridad/permisos', adminOnly: true   },
-        { label: 'Bitácora',          icon: 'clock',       route: '/seguridad/bitacora', tabla: 'bitacora' },
+        { label: 'Datos del colegio', icon: 'settings', route: '/configuracion/colegio', tabla: 'configuracion', group: 'General' },
+        { label: 'Cuotas',            icon: 'coins',    route: '/finanzas/cuotas',       tabla: 'cuotas',        group: 'General' },
+
+        { label: 'Estados civiles',        icon: 'tag',    route: '/catalogos/estados-civiles',        tabla: 'estados_civiles',        group: 'Catálogos' },
+        { label: 'Formaciones académicas', icon: 'award',  route: '/catalogos/formaciones-academicas', tabla: 'formaciones_academicas', group: 'Catálogos' },
+        { label: 'Categorías de archivos', icon: 'folder', route: '/catalogos/categorias-archivos',    tabla: 'categorias_archivos',    group: 'Catálogos' },
+
+        { label: 'Usuarios',          icon: 'user',        route: '/seguridad/usuarios', tabla: 'usuarios', group: 'Seguridad' },
+        { label: 'Usuarios / Grupos', icon: 'shield-user', route: '/seguridad/grupos',   adminOnly: true,   group: 'Seguridad' },
+        { label: 'Permisos',          icon: 'shield',      route: '/seguridad/permisos', adminOnly: true,   group: 'Seguridad' },
+        { label: 'Bitácora',          icon: 'clock',       route: '/seguridad/bitacora', tabla: 'bitacora', group: 'Seguridad' },
       ],
     },
   ];

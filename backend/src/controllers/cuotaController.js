@@ -72,6 +72,8 @@ function leerCuota(body, antes = null) {
   return {
     cuota, descripcion, periodicidad,
     obligatoria: bool(body.obligatoria, antes?.obligatoria ?? 1),
+    // SAT: solo inscripción y colegiatura van en recibo electrónico; lo demás, en factura
+    emite_recibo: bool(body.emite_recibo, antes?.emite_recibo ?? 0),
     activo: bool(body.activo, antes?.activo ?? 1),
   };
 }

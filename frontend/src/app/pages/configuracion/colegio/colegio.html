@@ -24,7 +24,7 @@
       <button class="detail-tab" [class.active]="tab === 'general'" (click)="tab = 'general'">Datos generales</button>
       <button class="detail-tab" [class.active]="tab === 'contrato'" (click)="tab = 'contrato'">Contrato de inscripción</button>
       <button class="detail-tab" [class.active]="tab === 'correo'" (click)="tab = 'correo'">Correo saliente</button>
-      <button class="detail-tab" [class.active]="tab === 'fel'" (click)="tab = 'fel'">Recibo electrónico (FEL)</button>
+      <button class="detail-tab" [class.active]="tab === 'fel'" (click)="tab = 'fel'">Documentos electrónicos (FEL)</button>
     </div>
 
     <form (ngSubmit)="guardar()" class="cfg-body">
@@ -295,10 +295,12 @@
           }
         }
 
-        <!-- ═════════════ Recibo electrónico (FEL) ═════════════ -->
+        <!-- ═════════════ Documentos electrónicos (FEL) ═════════════ -->
         @if (tab === 'fel') {
-          <p class="cfg-intro">Al registrar un pago se puede certificar ante SAT un <strong>recibo electrónico (DTE tipo RECI)</strong> por medio del
-            certificador contratado por el colegio. Los datos de la certificación se imprimen en el recibo en PDF.</p>
+          <p class="cfg-intro">Al registrar un pago se certifican ante SAT, por medio del certificador contratado por el colegio:
+            un <strong>recibo electrónico (RECI)</strong> por las cuotas marcadas como "Emite recibo electrónico" en Finanzas › Cuotas
+            (inscripción y colegiatura), y una <strong>factura electrónica (FACT)</strong> por la mora y las demás cuotas.
+            Cada documento tiene su propio PDF con los datos de la certificación.</p>
 
           <div class="form-section">
             <div class="cfg-stack">
@@ -306,16 +308,8 @@
                 <input type="checkbox" [checked]="f.fel_habilitado === 1" (change)="f.fel_habilitado = $any($event.target).checked ? 1 : 0"/>
                 <span class="switch-slider"></span>
                 <span class="switch-label">
-                  Habilitar recibo electrónico
-                  <span class="switch-desc">Muestra la opción "Emitir recibo electrónico SAT" al cobrar y en el listado de pagos</span>
-                </span>
-              </label>
-              <label class="switch-wrap">
-                <input type="checkbox" [checked]="f.fel_emitir_pago === 1" (change)="f.fel_emitir_pago = $any($event.target).checked ? 1 : 0"/>
-                <span class="switch-slider"></span>
-                <span class="switch-label">
-                  Emitir al registrar el pago
-                  <span class="switch-desc">Al cobrar, la opción aparece marcada (puede desmarcarse y emitirse después desde el listado)</span>
+                  Habilitar documentos electrónicos
+                  <span class="switch-desc">Muestra la opción de emitir el recibo y la factura electrónica al confirmar el pago y en el listado de pagos</span>
                 </span>
               </label>
             </div>
@@ -435,9 +429,14 @@
                 <input class="col-input mono" name="fel_codigo_postal" [(ngModel)]="f.fel_codigo_postal" maxlength="10"/>
               </div>
               <div class="field">
-                <label class="col-label">Frases <span class="hint">opcional</span></label>
-                <input class="col-input mono" name="fel_frases" [(ngModel)]="f.fel_frases" maxlength="100" placeholder="Ej. 4,1"/>
+                <label class="col-label">Frases del recibo <span class="hint">opcional</span></label>
+                <input class="col-input mono" name="fel_frases" [(ngModel)]="f.fel_frases" maxlength="100" placeholder="Ej. 4,5"/>
                 <div class="field-hint">tipo,escenario separados por punto y coma.</div>
+              </div>
+              <div class="field">
+                <label class="col-label">Frases de la factura <span class="hint">opcional</span></label>
+                <input class="col-input mono" name="fel_frases_factura" [(ngModel)]="f.fel_frases_factura" maxlength="100" placeholder="Ej. 1,1"/>
+                <div class="field-hint">Ej. 1,1 = sujeto a pagos trimestrales ISR. La factura lleva IVA (12 %) incluido si la afiliación es General.</div>
               </div>
             </div>
             <div class="field-hint">La dirección, el municipio, el departamento y el correo del emisor se toman de Datos generales.</div>

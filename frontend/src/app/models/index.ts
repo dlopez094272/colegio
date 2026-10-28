@@ -291,6 +291,8 @@ export interface Cuota {
   descripcion: string | null;
   periodicidad: Periodicidad;
   obligatoria: number;
+  /** 1 = se documenta con recibo electrónico (inscripción, colegiatura); 0 = con factura. */
+  emite_recibo: number;
   orden: number;
   activo: number;
   total_ciclos?: number;
@@ -463,14 +465,11 @@ export interface Pago {
   estado: 'Activo' | 'Anulado';
   motivo_anulacion: string | null;
   fecha_anulacion: string | null;
-  /** Recibo electrónico SAT: null = no emitido. */
-  fel_estado: FelEstado | null;
-  fel_serie: string | null;
-  fel_numero: string | null;
-  fel_uuid: string | null;
-  fel_fecha_certificacion: string | null;
-  fel_id_receptor: string | null;
-  fel_mensaje: string | null;
+  /** Parte del pago que va en el recibo (cuotas con emite_recibo) y en la factura (mora y demás cuotas). */
+  total_recibo: number;
+  total_factura: number;
+  /** Documentos electrónicos SAT que lleva el pago (recibo y/o factura). */
+  documentos: DocumentoFel[];
   fecha_creacion: string;
   usuario_registro: string | null;
   estudiantes: string | null;
@@ -478,10 +477,27 @@ export interface Pago {
   detalle?: PagoDetalle[];
 }
 
-export type FelEstado = 'Procesando' | 'Certificado' | 'Error' | 'Anulado' | 'Error al anular';
+export type FelEstado = 'Pendiente' | 'Procesando' | 'Certificado' | 'Error' | 'Anulado' | 'Error al anular';
+export type TipoDocumentoFel = 'RECI' | 'FACT';
 
-/** Resultado de certificar (o anular) el recibo electrónico junto con el pago. */
+/** Documento electrónico del pago: RECI = recibo, FACT = factura. estado null = aún no se ha emitido. */
+export interface DocumentoFel {
+  tipo: TipoDocumentoFel;
+  estado: FelEstado | null;
+  total: number;
+  iva?: number | null;
+  dte?: string | null;
+  serie?: string | null;
+  numero?: string | null;
+  uuid?: string | null;
+  fecha_certificacion?: string | null;
+  id_receptor?: string | null;
+  mensaje?: string | null;
+}
+
+/** Resultado de certificar (o anular) un documento electrónico. */
 export interface ResultadoFel {
+  tipo: TipoDocumentoFel;
   certificado?: boolean;
   anulado?: boolean;
   serie?: string;
@@ -499,6 +515,7 @@ export interface PagoDetalle {
   mora_pagada: number;
   mora_exonerada: number;
   total_linea: number;
+  emite_recibo: number;
   codigo: string;
   estudiante: string;
   grado: string;
@@ -533,6 +550,8 @@ export interface CargoPendiente {
   nivel: string;
   carrera: string | null;
   seccion: string | null;
+  /** 1 = la cuota va en el recibo electrónico; 0 = en la factura (la mora siempre va en la factura). */
+  emite_recibo: number;
 }
 
 export interface PendientesPago {
@@ -610,6 +629,7 @@ export interface Configuracion {
   fel_afiliacion_iva: string;
   fel_codigo_postal: string;
   fel_frases: string | null;
+  fel_frases_factura: string | null;
   fel_emitir_pago: number;
   fel_activar_log: number;
   nit_consulta_url: string | null;

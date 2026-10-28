@@ -61,7 +61,10 @@
         <!-- submenu: accordion inline (expandido) / panel flotante (colapsado) -->
         <div class="nav-submenu">
           <div class="nav-submenu-header">{{ sec.section }}</div>
-          @for (item of sec.items; track item.route) {
+          @for (item of sec.items; track item.route; let i = $index) {
+            @if (item.group && item.group !== sec.items[i - 1]?.group) {
+              <div class="nav-subgroup">{{ item.group }}</div>
+            }
             <a [routerLink]="item.route" routerLinkActive="active" class="nav-item" [title]="item.label" (click)="layout.closeMobile()">
               @switch (item.icon) {
                 @case ('student') {

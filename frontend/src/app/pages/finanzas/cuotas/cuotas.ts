@@ -37,6 +37,7 @@ interface CuotaForm {
   descripcion: string;
   periodicidad: Periodicidad;
   obligatoria: number;
+  emite_recibo: number;
   orden: number | null;
   activo: number;
 }
@@ -569,14 +570,14 @@ export class CuotasPage implements OnInit {
 
   nuevaCuota() {
     this.error = '';
-    this.cuotaForm = { cuota: '', descripcion: '', periodicidad: 'Unica', obligatoria: 1, orden: null, activo: 1 };
+    this.cuotaForm = { cuota: '', descripcion: '', periodicidad: 'Unica', obligatoria: 1, emite_recibo: 0, orden: null, activo: 1 };
   }
 
   editarCuota(c: Cuota) {
     this.error = '';
     this.cuotaForm = {
       idcuotas: c.idcuotas, cuota: c.cuota, descripcion: c.descripcion ?? '', periodicidad: c.periodicidad,
-      obligatoria: c.obligatoria ? 1 : 0, orden: c.orden, activo: c.activo ? 1 : 0,
+      obligatoria: c.obligatoria ? 1 : 0, emite_recibo: c.emite_recibo ? 1 : 0, orden: c.orden, activo: c.activo ? 1 : 0,
     };
   }
 

@@ -6,7 +6,7 @@ const { registrarBitacora } = require('./bitacora');
 const { fail } = require('./transaccion');
 const B = require('../pdf/base');
 const { generarContrato, nombreGrado } = require('../pdf/contrato');
-const { generarRecibo, numeroRecibo } = require('../pdf/recibo');
+const { generarRecibo, generarFactura, separaDocumentos, numeroRecibo } = require('../pdf/recibo');
 
 // Correos al padre de familia: aviso de inscripción (con el contrato en PDF)
 // y comprobante de cada pago (con el recibo en PDF).
@@ -122,7 +122,8 @@ async function notificarInscripcion(id, { correos = null, req } = {}) {
 }
 
 /**
- * Comprobante de pago (recibo en PDF) al padre que pagó o a los encargados.
+ * Comprobante de pago al padre que pagó o a los encargados. Adjunta el recibo
+ * en PDF y, si el pago lleva factura (mora u otras cuotas con FEL), la factura.
  * @param {number} id
  * @param {object} opts - { correos?: destinatarios, req }
  */
@@ -135,6 +136,11 @@ async function notificarPago(id, { correos = null, req } = {}) {
 
   const [col, detalle] = await Promise.all([ConfiguracionModel.datosColegio(), PagoModel.detalle(id)]);
   const num = numeroRecibo(p.numero);
+  const separa = separaDocumentos(p, col);
+  const adjuntos = [
+    (!separa || p.total_recibo > 0) && { nombre: 'el recibo', archivo: `Recibo ${num}.pdf`, generar: generarRecibo },
+    separa && p.total_factura > 0 && { nombre: 'la factura', archivo: `Factura ${num}.pdf`, generar: generarFactura },
+  ].filter(Boolean);
   const cuerpo = `
     <p>Estimado(a) <strong>${esc(p.pagador_nombre)}</strong>:</p>
     <p>Hemos recibido su pago. Este es el comprobante:</p>
@@ -147,15 +153,17 @@ async function notificarPago(id, { correos = null, req } = {}) {
       detalle.map(d => [d.estudiante, d.concepto + (Number(d.mora_pagada) > 0 ? ` (incluye mora ${B.q(d.mora_pagada)})` : ''), B.q(d.total_linea)]),
       ['Total pagado', '', B.q(p.total)])}
     <p style="font-size:12.5px;color:#6B6862">${esc(B.montoEnLetras(p.total))}</p>
-    <p>Adjuntamos el recibo en PDF. ¡Gracias por su pago!</p>
+    <p>Adjuntamos ${adjuntos.map(a => a.nombre).join(' y ')} en PDF. ¡Gracias por su pago!</p>
     <p>Atentamente,<br><strong>${esc(col.nombre)}</strong></p>`;
 
-  const pdf = await B.aBuffer(generarRecibo(p, detalle, col));
+  const attachments = await Promise.all(adjuntos.map(async a => ({
+    filename: a.archivo, content: await B.aBuffer(a.generar(p, detalle, col)), contentType: 'application/pdf',
+  })));
   await sendMail({
     to: para.join(', '),
     subject: `Comprobante de pago — Recibo No. ${num}`,
     html: plantilla(col, `Comprobante de pago · Recibo No. ${num}`, cuerpo),
-    attachments: [{ filename: `Recibo ${num}.pdf`, content: pdf, contentType: 'application/pdf' }],
+    attachments,
   });
   await registrarBitacora({
     tabla: 'pagos', idregistro: id, accion: 'NOTIFICAR',

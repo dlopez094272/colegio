@@ -36,7 +36,7 @@ const MAX = {
   jornada: 30, smtp_host: 150, smtp_usuario: 150, smtp_remitente_nombre: 150, smtp_remitente_email: 150,
   fel_certificador_nit: 20, fel_usuario: 100, fel_alias: 100, fel_url_firma: 250, fel_url_certificacion: 250,
   fel_url_anulacion: 250, fel_url_firma_anulacion: 250, fel_nit_emisor: 20, fel_nombre_emisor: 150,
-  fel_nombre_comercial: 150, fel_codigo_postal: 10, fel_frases: 100, nit_consulta_url: 250,
+  fel_nombre_comercial: 150, fel_codigo_postal: 10, fel_frases: 100, fel_frases_factura: 100, nit_consulta_url: 250,
 };
 const BOOLEANOS = ['smtp_seguro', 'notificar_inscripcion', 'notificar_pago', 'fel_habilitado', 'fel_emitir_pago', 'fel_activar_log'];
 const URLS = ['fel_url_firma', 'fel_url_certificacion', 'fel_url_anulacion', 'fel_url_firma_anulacion', 'nit_consulta_url'];
@@ -86,22 +86,23 @@ function leerConfiguracion(body) {
     return { error: `${ETIQUETAS.smtp_puerto} no es válido` };
   if (data.nit) data.nit = data.nit.toUpperCase().replace(/\s/g, '');
 
-  // Recibo electrónico (FEL)
+  // Documentos electrónicos (FEL): recibo y factura
   for (const c of ['fel_nit_emisor', 'fel_certificador_nit']) {
     if (data[c]) data[c] = data[c].toUpperCase().replace(/[\s-]/g, '');
   }
   if (data.fel_certificador && !CERTIFICADORES.includes(data.fel_certificador)) return { error: 'El certificador FEL no es válido' };
   if (data.fel_habilitado && 'fel_certificador' in data && !data.fel_certificador)
-    return { error: 'Seleccione el certificador para habilitar el recibo electrónico' };
+    return { error: 'Seleccione el certificador para habilitar los documentos electrónicos' };
   for (const c of URLS) {
     if (data[c] && !/^https?:\/\/\S+$/i.test(data[c])) return { error: `${ETIQUETAS[c]} no es válida` };
   }
   if (data.fel_codigo_establecimiento && !/^\d{1,5}$/.test(data.fel_codigo_establecimiento))
     return { error: 'El código de establecimiento debe ser numérico' };
   if (data.fel_afiliacion_iva && !AFILIACIONES_IVA.includes(data.fel_afiliacion_iva)) return { error: 'La afiliación al IVA no es válida' };
-  if (data.fel_frases) {
-    data.fel_frases = data.fel_frases.replace(/\s/g, '');
-    if (!/^\d+,\d+(;\d+,\d+)*$/.test(data.fel_frases)) return { error: 'Las frases deben tener el formato tipo,escenario;tipo,escenario (ej. 4,1)' };
+  for (const [c, doc] of [['fel_frases', 'del recibo'], ['fel_frases_factura', 'de la factura']]) {
+    if (!data[c]) continue;
+    data[c] = data[c].replace(/\s/g, '');
+    if (!/^\d+,\d+(;\d+,\d+)*$/.test(data[c])) return { error: `Las frases ${doc} deben tener el formato tipo,escenario;tipo,escenario (ej. 1,1)` };
   }
   return { data };
 }

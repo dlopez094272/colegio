@@ -76,8 +76,10 @@
               <td>
                 @if (p.estado === 'Activo') { <span class="badge success">Vigente</span> }
                 @else { <span class="badge danger" [title]="p.motivo_anulacion || ''">Anulado</span> }
-                @if (felEtiqueta(p); as fe) {
-                  <div><span class="badge pg-fel" [class]="fe.clase" [title]="p.fel_mensaje || ''">{{ fe.texto }}</span></div>
+                @for (doc of p.documentos; track doc.tipo) {
+                  @if (felEtiqueta(doc); as fe) {
+                    <div><span class="badge pg-fel" [class]="fe.clase" [title]="doc.mensaje || ''">{{ fe.texto }}</span></div>
+                  }
                 }
               </td>
             </tr>
@@ -183,7 +185,10 @@
                     @for (x of g.cargos; track x.idinscripciones_cargos) {
                       <tr [class.sel]="c.marcados.has(x.idinscripciones_cargos)" [class.venc]="x.vencido" (click)="toggle(x.idinscripciones_cargos)">
                         <td class="chk"><input type="checkbox" [checked]="c.marcados.has(x.idinscripciones_cargos)" (click)="$event.stopPropagation()" (change)="toggle(x.idinscripciones_cargos)"/></td>
-                        <td>{{ x.concepto }}</td>
+                        <td>
+                          {{ x.concepto }}
+                          @if (felHabilitado && !x.emite_recibo) { <span class="badge neutral pg-doc" title="Esta cuota se documenta con factura electrónica">Factura</span> }
+                        </td>
                         <td class="nowrap">
                           {{ fecha(x.fecha_vencimiento) }}
                           @if (x.vencido) { <span class="badge danger pg-venc">Vencida</span> }
@@ -268,15 +273,6 @@
                     </span>
                   </span>
                 </label>
-                @if (felHabilitado) {
-                  <label class="pg-notificar">
-                    <input type="checkbox" name="emitir_fel" [(ngModel)]="c.emitir_fel"/>
-                    <span>
-                      Emitir recibo electrónico SAT (FEL)
-                      <span class="sub-txt">Se certifica a nombre de {{ c.pagador_nombre || '—' }}, NIT {{ c.pagador_nit || 'CF' }}. Si no se marca, puede emitirse después desde el listado.</span>
-                    </span>
-                  </label>
-                }
               </div>
 
               <div class="pg-resumen">
@@ -284,6 +280,17 @@
                 <div><span>Subtotal</span><strong>{{ q(resumen.subtotal) }}</strong></div>
                 <div><span>Mora</span><strong [class.mal]="resumen.mora">{{ q(resumen.mora) }}</strong></div>
                 <div class="pg-total"><span>Total a cobrar</span><strong>{{ q(resumen.total) }}</strong></div>
+                @if (felHabilitado && resumen.cuotas) {
+                  <div class="pg-docs">
+                    @if (resumen.recibo) { <div><span>Recibo electrónico</span><strong>{{ q(resumen.recibo) }}</strong></div> }
+                    @if (resumen.factura) { <div><span>Factura electrónica</span><strong>{{ q(resumen.factura) }}</strong></div> }
+                    @if (resumen.recibo && resumen.factura) {
+                      <p class="pg-docs-nota">Se emitirán dos documentos: el recibo por inscripción y colegiatura, y la factura por {{ resumen.mora ? 'la mora' : '' }}{{ resumen.mora && resumen.factura > resumen.mora ? ' y ' : '' }}{{ resumen.factura > resumen.mora ? 'las demás cuotas' : '' }}.</p>
+                    } @else if (resumen.factura) {
+                      <p class="pg-docs-nota">Este pago se documenta solo con factura electrónica.</p>
+                    }
+                  </div>
+                }
               </div>
             </div>
           }
@@ -298,6 +305,76 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+}
+
+<!-- ── Modal: pago registrado ──────────────────────────────────────── -->
+@if (registrado; as r) {
+  <div class="modal-overlay" (click)="cerrarRegistrado()">
+    <div class="modal-box pg-registrado" (click)="$event.stopPropagation()">
+      <button class="modal-close-btn" type="button" (click)="cerrarRegistrado()" [disabled]="r.emitiendo">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-header-bar pg-registrado-head">
+        <div class="pg-registrado-ok">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div>
+          <div class="modal-title">Pago registrado</div>
+          <div class="modal-sub">Recibo No. {{ numero(r.numero) }} · {{ r.pagador_nombre }} · {{ q(r.total) }}</div>
+        </div>
+      </div>
+
+      @if (felHabilitado) {
+        @for (doc of r.documentos; track doc.tipo) {
+          <div class="pg-fel-box" [class.error]="doc.estado === 'Error'">
+            <div class="pg-fel-titulo">
+              {{ nombreDoc(doc.tipo) }} SAT · {{ q(doc.total) }}
+              @if (felEtiqueta(doc); as fe) { <span class="badge" [class]="fe.clase">{{ fe.texto }}</span> }
+            </div>
+            @if (doc.estado === 'Certificado') {
+              <div class="ficha-fields pg-ficha">
+                <div class="ficha-field"><span class="ff-label">Serie / número</span><span class="ff-value mono">{{ doc.serie }} · {{ doc.numero }}</span></div>
+                <div class="ficha-field full"><span class="ff-label">Número de autorización</span><span class="ff-value mono">{{ doc.uuid }}</span></div>
+              </div>
+            } @else if (doc.estado === 'Error') {
+              <div class="pg-fel-error"><strong>No se certificó:</strong> {{ doc.mensaje }}</div>
+            } @else {
+              <div class="sub-txt">{{ doc.tipo === 'RECI' ? 'Cuotas de inscripción y colegiatura.' : 'Mora y demás cuotas.' }}</div>
+            }
+          </div>
+        }
+        @if (registradoPendientes.length && !r.emitiendo) {
+          <div class="sub-txt">¿Desea certificar{{ registradoPendientes.length > 1 ? 'los' : 'lo' }} ahora a nombre de {{ r.pagador_nombre }}, NIT {{ r.pagador_nit }}? También puede hacerse después desde el listado.</div>
+        }
+      }
+
+      @if (r.correoPendiente) {
+        <div class="sub-txt pg-registrado-correo">El comprobante se enviará por correo al cerrar{{ felHabilitado && registradoPendientes.length ? ' o al emitir los documentos electrónicos' : '' }}.</div>
+      } @else if (r.correo) {
+        <div class="sub-txt pg-registrado-correo" [class.mal]="!r.correo.enviado">
+          {{ r.correo.enviado ? 'Comprobante enviado a ' + r.correo.destinatarios?.join(', ') + '.' : 'No se envió el comprobante por correo: ' + r.correo.error }}
+        </div>
+      }
+
+      <div class="modal-actions pg-registrado-acciones">
+        <button class="btn-col ghost" (click)="cerrarRegistrado()" [disabled]="r.emitiendo">Cerrar</button>
+        @if (llevaRecibo(r)) {
+          <button class="btn-col" [class.primary]="!registradoPendientes.length && !llevaFactura(r)" [class.outline]="registradoPendientes.length || llevaFactura(r)"
+                  (click)="verRecibo(r.id)" [disabled]="r.emitiendo">Imprimir recibo</button>
+        }
+        @if (llevaFactura(r)) {
+          <button class="btn-col" [class.primary]="!registradoPendientes.length" [class.outline]="registradoPendientes.length"
+                  (click)="verFactura(r.id)" [disabled]="r.emitiendo">Imprimir factura</button>
+        }
+        @if (felHabilitado && registradoPendientes.length) {
+          <button class="btn-col primary pg-emitir" (click)="emitirFelRegistrado()" [disabled]="r.emitiendo">
+            @if (r.emitiendo) { <span class="spinner"></span> }
+            {{ etiquetaEmitir(r.documentos) }}
+          </button>
+        }
+      </div>
     </div>
   </div>
 }
@@ -329,21 +406,24 @@
             <div class="ficha-field"><span class="ff-label">Registrado por</span><span class="ff-value">{{ d.usuario_registro || '—' }} · {{ d.fecha_creacion | date:'dd/MM/yyyy HH:mm' }}</span></div>
             @if (d.observaciones) { <div class="ficha-field full"><span class="ff-label">Observaciones</span><span class="ff-value">{{ d.observaciones }}</span></div> }
           </div>
-          @if (d.fel_estado) {
-            <div class="pg-fel-box" [class.error]="d.fel_estado === 'Error' || d.fel_estado === 'Error al anular'">
-              <div class="pg-fel-titulo">
-                Recibo electrónico SAT
-                @if (felEtiqueta(d); as fe) { <span class="badge" [class]="fe.clase">{{ fe.texto }}</span> }
-              </div>
-              @if (d.fel_uuid) {
-                <div class="ficha-fields pg-ficha">
-                  <div class="ficha-field"><span class="ff-label">Serie / número</span><span class="ff-value mono">{{ d.fel_serie }} · {{ d.fel_numero }}</span></div>
-                  <div class="ficha-field"><span class="ff-label">Certificado</span><span class="ff-value">{{ d.fel_fecha_certificacion | date:'dd/MM/yyyy HH:mm' }} · NIT {{ d.fel_id_receptor }}</span></div>
-                  <div class="ficha-field full"><span class="ff-label">Número de autorización</span><span class="ff-value mono">{{ d.fel_uuid }}</span></div>
+          @for (doc of d.documentos; track doc.tipo) {
+            @if (doc.estado || felHabilitado) {
+              <div class="pg-fel-box" [class.error]="doc.estado === 'Error' || doc.estado === 'Error al anular'">
+                <div class="pg-fel-titulo">
+                  {{ nombreDoc(doc.tipo) }} SAT · {{ q(doc.total) }}
+                  @if (felEtiqueta(doc); as fe) { <span class="badge" [class]="fe.clase">{{ fe.texto }}</span> }
+                  @else if (d.estado === 'Activo') { <span class="badge neutral">Sin emitir</span> }
                 </div>
-              }
-              @if (d.fel_mensaje && d.fel_estado !== 'Certificado') { <div class="sub-txt">{{ d.fel_mensaje }}</div> }
-            </div>
+                @if (doc.uuid) {
+                  <div class="ficha-fields pg-ficha">
+                    <div class="ficha-field"><span class="ff-label">Serie / número</span><span class="ff-value mono">{{ doc.serie }} · {{ doc.numero }}</span></div>
+                    <div class="ficha-field"><span class="ff-label">Certificado</span><span class="ff-value">{{ doc.fecha_certificacion | date:'dd/MM/yyyy HH:mm' }} · NIT {{ doc.id_receptor }}</span></div>
+                    <div class="ficha-field full"><span class="ff-label">Número de autorización</span><span class="ff-value mono">{{ doc.uuid }}</span></div>
+                  </div>
+                }
+                @if (doc.mensaje && doc.estado !== 'Certificado') { <div class="pg-fel-error">{{ doc.mensaje }}</div> }
+              </div>
+            }
           }
           @if (d.detalle) {
             <table class="col-table pg-tabla">
@@ -352,7 +432,10 @@
                 @for (l of d.detalle; track l.idpagos_detalle) {
                   <tr>
                     <td>{{ l.estudiante }}<div class="sub-txt">{{ l.grado }} {{ l.seccion || '' }} · {{ l.codigo }}</div></td>
-                    <td>{{ l.concepto }}</td>
+                    <td>
+                      {{ l.concepto }}
+                      @if (separaDocumentos(d) && !l.emite_recibo) { <span class="badge neutral pg-doc">Factura</span> }
+                    </td>
                     <td class="nowrap">{{ fecha(l.fecha_vencimiento) }}</td>
                     <td class="num nowrap">{{ q(l.monto_pagado) }}</td>
                     <td class="num nowrap">@if (l.mora_exonerada) { <span class="muted">Exonerada</span> } @else if (l.mora_pagada) { {{ q(l.mora_pagada) }} }</td>
@@ -380,16 +463,21 @@
         @if (puedeA && puedeEmitirFel(d)) {
           <button class="btn-col outline" (click)="certificarFel(d)" [disabled]="felEnCurso.has(d.idpagos)">
             @if (felEnCurso.has(d.idpagos)) { <span class="spinner dark"></span> }
-            {{ d.fel_estado === 'Error' ? 'Reintentar recibo electrónico' : 'Emitir recibo electrónico' }}
+            {{ etiquetaEmitir(d.documentos) }}
           </button>
         }
-        @if (puedeD && d.estado === 'Anulado' && d.fel_estado === 'Error al anular') {
+        @if (puedeD && anulacionPendiente(d)) {
           <button class="btn-col outline" (click)="reintentarAnulacionFel(d)" [disabled]="felEnCurso.has(d.idpagos)">
             @if (felEnCurso.has(d.idpagos)) { <span class="spinner dark"></span> }
             Reintentar anulación SAT
           </button>
         }
-        <button class="btn-col primary" (click)="verRecibo(d.idpagos)">Imprimir recibo</button>
+        @if (llevaFactura(d)) {
+          <button class="btn-col" [class.primary]="!llevaRecibo(d)" [class.outline]="llevaRecibo(d)" (click)="verFactura(d.idpagos)">Imprimir factura</button>
+        }
+        @if (llevaRecibo(d)) {
+          <button class="btn-col primary" (click)="verRecibo(d.idpagos)">Imprimir recibo</button>
+        }
       </div>
     </div>
   </div>

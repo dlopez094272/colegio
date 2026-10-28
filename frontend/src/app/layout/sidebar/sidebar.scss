@@ -228,6 +228,22 @@
   }
 }
 
+/* Subtítulo de grupo dentro de una sección (p. ej. Configuración → Catálogos / Seguridad) */
+.nav-subgroup {
+  font-family: var(--font-ui);
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 1.6px; text-transform: uppercase;
+  color: rgba(212,178,76,.6);
+  padding: 10px 10px 4px 22px;
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .nav-submenu .nav-subgroup { padding-left: 10px; }
+
+@media (max-width: 768px) {
+  .sidebar.collapsed .nav-submenu .nav-subgroup { padding-left: 22px; }
+}
+
 .nav-svg {
   width: 16px; height: 16px;
   flex-shrink: 0;

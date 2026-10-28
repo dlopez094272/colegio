@@ -34,7 +34,7 @@ const CAMPOS_TEXTO = [
   'fel_certificador', 'fel_certificador_nit', 'fel_usuario', 'fel_alias',
   'fel_url_firma', 'fel_url_certificacion', 'fel_url_anulacion', 'fel_url_firma_anulacion',
   'fel_nit_emisor', 'fel_nombre_emisor', 'fel_nombre_comercial', 'fel_codigo_establecimiento', 'fel_afiliacion_iva',
-  'fel_codigo_postal', 'fel_frases', 'nit_consulta_url',
+  'fel_codigo_postal', 'fel_frases', 'fel_frases_factura', 'nit_consulta_url',
 ] as const;
 
 const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -43,7 +43,7 @@ const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * Configuración del colegio: datos generales y logotipo (login, dashboard y
  * todos los PDF), datos que llenan el contrato de adhesión, el servidor de
  * correo saliente para avisos de inscripción y comprobantes de pago, y el
- * certificador del recibo electrónico SAT (FEL).
+ * certificador de los documentos electrónicos SAT (FEL): recibo y factura.
  */
 @Component({
   selector: 'app-configuracion-colegio',
@@ -137,8 +137,10 @@ export class ConfiguracionColegioPage implements OnInit, OnDestroy {
     if (f.smtp_remitente_email && !RE_EMAIL.test(f.smtp_remitente_email.trim())) { this.tab = 'correo'; return 'El correo del remitente no es válido.'; }
     const p = Number(f.smtp_puerto);
     if (f.smtp_host && !(Number.isInteger(p) && p > 0 && p < 65536)) { this.tab = 'correo'; return 'El puerto SMTP no es válido.'; }
-    if (f.fel_habilitado && !f.fel_certificador) { this.tab = 'fel'; return 'Seleccione el certificador para habilitar el recibo electrónico.'; }
-    if (f.fel_frases && !/^\d+,\d+(;\d+,\d+)*$/.test(f.fel_frases.replace(/\s/g, ''))) { this.tab = 'fel'; return 'Las frases deben tener el formato tipo,escenario (ej. 4,1).'; }
+    if (f.fel_habilitado && !f.fel_certificador) { this.tab = 'fel'; return 'Seleccione el certificador para habilitar los documentos electrónicos.'; }
+    for (const [frases, doc] of [[f.fel_frases, 'del recibo'], [f.fel_frases_factura, 'de la factura']] as const) {
+      if (frases && !/^\d+,\d+(;\d+,\d+)*$/.test(frases.replace(/\s/g, ''))) { this.tab = 'fel'; return `Las frases ${doc} deben tener el formato tipo,escenario (ej. 1,1).`; }
+    }
     return null;
   }
 
@@ -252,7 +254,7 @@ export class ConfiguracionColegioPage implements OnInit, OnDestroy {
     if (!this.f.smtp_seguro && (!p || p === 465)) this.f.smtp_puerto = 587;
   }
 
-  // ─── Recibo electrónico (FEL) ───
+  // ─── Documentos electrónicos (FEL) ───
   guardada(k: SecretoFel) { return !!(this.cfg as any)?.[`${k}_guardada`] && !this.borrar[k]; }
 
   onCertificador() {

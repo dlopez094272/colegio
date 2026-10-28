@@ -2,10 +2,10 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { CargoPendiente, FORMAS_PAGO, FormaPago, PagadorBusqueda, Pago, PendientesPago, ResultadoFel } from '../../../models';
+import { CargoPendiente, DocumentoFel, FORMAS_PAGO, FormaPago, PagadorBusqueda, Pago, PendientesPago, ResultadoCorreo, ResultadoFel, TipoDocumentoFel } from '../../../models';
 import { PagosService } from '../../../services/pagos.service';
 import { PermisosService } from '../../../services/permisos.service';
-import { confirmDialog, confirmSuccessChoice, promptCorreo, promptMotivo, showAlert, showError, showSuccess } from '../../../services/confirm';
+import { confirmDialog, promptCorreo, promptMotivo, showAlert, showError, showSuccess } from '../../../services/confirm';
 import { ConfiguracionService } from '../../../services/configuracion.service';
 import { PaginatorComponent } from '../../../shared/paginator/paginator';
 import { RowAction, RowMenuComponent } from '../../../shared/row-menu/row-menu';
@@ -37,9 +37,29 @@ interface CobroForm {
   observaciones: string;
   /** Enviar el comprobante (recibo en PDF) por correo. */
   notificar: boolean;
-  /** Certificar el recibo electrónico SAT al registrar el pago. */
-  emitir_fel: boolean;
 }
+
+/** Pago recién registrado: modal de confirmación con la opción de emitir los documentos electrónicos. */
+interface PagoRegistrado {
+  id: number;
+  numero: number;
+  total: number;
+  pagador_nombre: string;
+  pagador_nit: string;
+  /** Recibo y/o factura que lleva el pago; se actualizan al certificar. */
+  documentos: DocumentoFel[];
+  total_recibo: number;
+  total_factura: number;
+  emitiendo: boolean;
+  /** Comprobante por correo aún sin enviar: se espera a la decisión del FEL para que los PDF lo incluyan. */
+  correoPendiente: boolean;
+  correo: ResultadoCorreo | null;
+}
+
+const NOMBRE_DOC: Record<TipoDocumentoFel, string> = { RECI: 'recibo electrónico', FACT: 'factura electrónica' };
+
+/** Documentos que aún se pueden certificar (sin emitir o con error). */
+const porCertificar = (docs: DocumentoFel[]) => docs.filter(d => !d.estado || d.estado === 'Pendiente' || d.estado === 'Error');
 
 const hoyIso = () => {
   const d = new Date();
@@ -50,9 +70,11 @@ const primeroDelMes = () => hoyIso().substring(0, 8) + '01';
 /**
  * Pagos: cobro de cuotas del estado de cuenta. Se busca al padre (cobra todas
  * las cuotas de sus hijos) o al estudiante, se marcan las cuotas pendientes
- * (con su mora a la fecha de pago) y se genera el recibo en PDF. Si está
- * habilitado en Configuración, el recibo se certifica ante SAT (FEL, tipo RECI)
- * al cobrar o después desde el listado.
+ * (con su mora a la fecha de pago) y se genera el recibo en PDF. Si FEL está
+ * habilitado en Configuración, el pago se documenta ante SAT con un recibo
+ * electrónico (cuotas de inscripción y colegiatura) y una factura electrónica
+ * (mora y demás cuotas), cada uno con su PDF; se certifican desde la
+ * confirmación del pago o después desde el listado.
  */
 @Component({
   selector: 'app-pagos',
@@ -90,6 +112,7 @@ export class PagosPage implements OnInit, OnDestroy {
   private nitConsultado = '';
   /** Pagos con una certificación o anulación FEL en curso. */
   felEnCurso = new Set<number>();
+  registrado: PagoRegistrado | null = null;
 
   // ── Detalle ──
   detalle: Pago | null = null;
@@ -112,7 +135,7 @@ export class PagosPage implements OnInit, OnDestroy {
     return c?.idpadres ? c.pendientes?.pagadores.find(p => p.idpadres === c.idpadres)?.email ?? null : null;
   }
 
-  /** Recibo electrónico SAT habilitado (Configuración › Recibo electrónico). */
+  /** Documentos electrónicos SAT habilitados (Configuración › FEL). */
   get felHabilitado() { return !!this.config.colegio()?.fel_habilitado; }
   get nitConsulta() { return !!this.config.colegio()?.nit_consulta; }
 
@@ -137,7 +160,11 @@ export class PagosPage implements OnInit, OnDestroy {
     if (cobrar && this.puedeA) this.nuevoCobro({ tipo: 'estudiante', id: cobrar, nombre: '' });
   }
 
-  ngOnDestroy() { clearTimeout(this.searchTimer); clearTimeout(this.buscarTimer); }
+  ngOnDestroy() {
+    clearTimeout(this.searchTimer); clearTimeout(this.buscarTimer);
+    // Si se sale con la confirmación abierta, el comprobante pendiente se envía igual
+    if (this.registrado?.correoPendiente) this.enviarCorreoRegistrado(this.registrado);
+  }
 
   // ═════════════ Listado ═════════════
   private syncUrl() {
@@ -173,14 +200,16 @@ export class PagosPage implements OnInit, OnDestroy {
   onPageSizeChange(ps: number) { this.pageSize = ps; this.reload(); }
 
   getRowActions(p: Pago): RowAction[] {
-    const a: RowAction[] = [
-      { label: 'Ver recibo (PDF)', icon: 'print', action: () => this.verRecibo(p.idpagos) },
+    const a: RowAction[] = [];
+    if (this.llevaRecibo(p)) a.push({ label: 'Ver recibo (PDF)', icon: 'print', action: () => this.verRecibo(p.idpagos) });
+    if (this.llevaFactura(p)) a.push({ label: 'Ver factura (PDF)', icon: 'print', action: () => this.verFactura(p.idpagos) });
+    a.push(
       { label: 'Detalle', icon: 'view', action: () => this.abrirDetalle(p, 'detalle') },
       { label: 'Bitácora', icon: 'bitacora', action: () => this.abrirDetalle(p, 'bitacora') },
-    ];
+    );
     if (this.puedeA && this.puedeEmitirFel(p))
-      a.push({ label: p.fel_estado === 'Error' ? 'Reintentar recibo electrónico SAT' : 'Emitir recibo electrónico SAT', icon: 'receipt', action: () => this.certificarFel(p) });
-    if (this.puedeD && p.estado === 'Anulado' && p.fel_estado === 'Error al anular')
+      a.push({ label: this.etiquetaEmitir(p.documentos) + ' SAT', icon: 'receipt', action: () => this.certificarFel(p) });
+    if (this.puedeD && this.anulacionPendiente(p))
       a.push({ label: 'Reintentar anulación ante SAT', icon: 'anular', action: () => this.reintentarAnulacionFel(p) });
     if (this.puedeA && p.estado === 'Activo' && this.correoHabilitado)
       a.push({ label: 'Enviar comprobante por correo', icon: 'mail', action: () => this.enviarComprobante(p) });
@@ -202,6 +231,18 @@ export class PagosPage implements OnInit, OnDestroy {
     this.svc.reciboPdf(id).subscribe({ next: abrirBlob, error: () => showError('No se pudo generar el recibo') });
   }
 
+  verFactura(id: number) {
+    this.svc.facturaPdf(id).subscribe({ next: abrirBlob, error: () => showError('No se pudo generar la factura') });
+  }
+
+  /**
+   * Con FEL el pago se imprime en dos formatos: el recibo (cuotas de inscripción
+   * y colegiatura) y la factura (mora y demás cuotas). Sin FEL, el recibo lleva todo.
+   */
+  separaDocumentos(p: Pick<Pago, 'documentos'>) { return this.felHabilitado || p.documentos.some(d => !!d.uuid); }
+  llevaRecibo(p: Pick<Pago, 'documentos' | 'total_recibo'>) { return !this.separaDocumentos(p) || p.total_recibo > 0; }
+  llevaFactura(p: Pick<Pago, 'documentos' | 'total_factura'>) { return this.separaDocumentos(p) && p.total_factura > 0; }
+
   abrirDetalle(p: Pago, tab: 'detalle' | 'bitacora') {
     this.detalleTab = tab;
     this.detalle = p;
@@ -209,7 +250,8 @@ export class PagosPage implements OnInit, OnDestroy {
   }
 
   async anular(p: Pago) {
-    const sat = p.fel_estado === 'Certificado' ? ' También se anulará ante SAT el recibo electrónico.' : '';
+    const cert = p.documentos.filter(d => d.estado === 'Certificado').map(d => (d.tipo === 'RECI' ? 'el ' : 'la ') + NOMBRE_DOC[d.tipo]);
+    const sat = cert.length ? ` También se anulará ante SAT ${this.lista(cert)}.` : '';
     const motivo = await promptMotivo(
       `Anular recibo ${this.numero(p.numero)}`,
       `${this.q(p.total)} — ${p.pagador_nombre}. Las cuotas del recibo volverán a quedar pendientes de pago.${sat}`,
@@ -220,57 +262,95 @@ export class PagosPage implements OnInit, OnDestroy {
       next: r => {
         this.detalle = null;
         this.load();
-        if (r.fel && !r.fel.anulado)
-          showAlert('Recibo anulado', `El recibo se anuló en el sistema, pero no ante SAT: ${r.fel.error}. Puede reintentarlo desde el listado.`);
-        else showSuccess(r.fel ? 'Recibo anulado (también ante SAT)' : 'Recibo anulado');
+        const fallidos = (r.fel ?? []).filter(x => !x.anulado);
+        if (fallidos.length)
+          showAlert('Recibo anulado', `El pago se anuló en el sistema, pero no ante SAT: ${this.erroresFel(fallidos)}. Puede reintentarlo desde el listado.`);
+        else showSuccess(r.fel?.length ? 'Recibo anulado (también ante SAT)' : 'Recibo anulado');
       },
       error: e => showError(e?.error?.message || 'No se pudo anular'),
     });
   }
 
-  // ─── Recibo electrónico SAT (FEL) ───
+  // ─── Documentos electrónicos SAT (FEL): recibo y factura ───
+  nombreDoc(tipo: TipoDocumentoFel) { return NOMBRE_DOC[tipo]; }
+
+  /** "a", "a y b" */
+  lista(items: string[]) { return items.length > 1 ? `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}` : items[0] ?? ''; }
+
+  erroresFel(r: ResultadoFel[]) { return r.map(x => `${NOMBRE_DOC[x.tipo]}: ${x.error}`).join(' · '); }
+
   puedeEmitirFel(p: Pago) {
-    return this.felHabilitado && p.estado === 'Activo' && (!p.fel_estado || p.fel_estado === 'Error');
+    return this.felHabilitado && p.estado === 'Activo' && porCertificar(p.documentos).length > 0;
   }
 
-  felEtiqueta(p: Pago): { texto: string; clase: string } | null {
-    switch (p.fel_estado) {
-      case 'Certificado': return { texto: 'FEL', clase: 'info' };
-      case 'Procesando': return { texto: 'FEL en proceso', clase: 'warning' };
-      case 'Error': return { texto: 'FEL con error', clase: 'danger' };
-      case 'Anulado': return { texto: 'FEL anulado', clase: 'neutral' };
-      case 'Error al anular': return { texto: 'FEL sin anular', clase: 'danger' };
+  anulacionPendiente(p: Pago) { return p.estado === 'Anulado' && p.documentos.some(d => d.estado === 'Error al anular'); }
+
+  /** "Emitir recibo y factura electrónica", "Reintentar factura electrónica"... */
+  etiquetaEmitir(docs: DocumentoFel[]) {
+    const pend = porCertificar(docs);
+    const verbo = pend.length && pend.every(d => d.estado === 'Error') ? 'Reintentar' : 'Emitir';
+    const que = pend.length > 1 ? 'recibo y factura electrónica' : pend[0] ? NOMBRE_DOC[pend[0].tipo] : 'documento electrónico';
+    return `${verbo} ${que}`;
+  }
+
+  felEtiqueta(d: DocumentoFel): { texto: string; clase: string } | null {
+    const reci = d.tipo === 'RECI';
+    const doc = reci ? 'Recibo' : 'Factura';
+    switch (d.estado) {
+      case 'Certificado': return { texto: `${doc} FEL`, clase: 'info' };
+      case 'Procesando': return { texto: `${doc} en proceso`, clase: 'warning' };
+      case 'Error': return { texto: `${doc} con error`, clase: 'danger' };
+      case 'Anulado': return { texto: `${doc} ${reci ? 'anulado' : 'anulada'}`, clase: 'neutral' };
+      case 'Error al anular': return { texto: `${doc} sin anular`, clase: 'danger' };
       default: return null;
     }
   }
 
   async certificarFel(p: Pago) {
     if (this.felEnCurso.has(p.idpagos)) return;
+    const docs = porCertificar(p.documentos).map(d => `${d.tipo === 'RECI' ? 'un' : 'una'} ${NOMBRE_DOC[d.tipo]} por ${this.q(d.total)}`);
     const ok = await confirmDialog(
-      `Se certificará ante SAT un recibo electrónico por ${this.q(p.total)} a nombre de ${p.pagador_nombre} (NIT ${p.pagador_nit}).`,
-      `Recibo electrónico — recibo No. ${this.numero(p.numero)}`, 'Certificar', false,
+      `Se certificará ante SAT ${this.lista(docs)} a nombre de ${p.pagador_nombre} (NIT ${p.pagador_nit}).`,
+      `Documentos electrónicos — recibo No. ${this.numero(p.numero)}`, 'Certificar', false,
     );
     if (!ok) return;
     this.felEnCurso.add(p.idpagos);
     this.svc.certificarFel(p.idpagos).subscribe({
       next: r => {
         this.felEnCurso.delete(p.idpagos);
-        showSuccess(`Recibo electrónico certificado: serie ${r.serie}, No. ${r.numero}`);
+        this.avisarCertificacion(r.resultados);
         this.refrescar(p.idpagos);
       },
       error: e => {
         this.felEnCurso.delete(p.idpagos);
-        showAlert('No se certificó el recibo electrónico', e?.error?.message || 'Error al comunicarse con el certificador', 'error');
+        showAlert('No se certificaron los documentos electrónicos', e?.error?.message || 'Error al comunicarse con el certificador', 'error');
         this.refrescar(p.idpagos);
       },
     });
+  }
+
+  private avisarCertificacion(resultados: ResultadoFel[]) {
+    const ok = resultados.filter(x => x.certificado);
+    const mal = resultados.filter(x => !x.certificado);
+    const hechos = ok.map(x => `${NOMBRE_DOC[x.tipo]} (serie ${x.serie}, No. ${x.numero})`);
+    if (!mal.length) showSuccess(`Certificado ante SAT: ${this.lista(hechos)}`);
+    else showAlert(
+      ok.length ? 'Certificación incompleta' : 'No se certificaron los documentos electrónicos',
+      `${ok.length ? `Certificado: ${this.lista(hechos)}. ` : ''}Sin certificar: ${this.erroresFel(mal)}`, 'error',
+    );
   }
 
   reintentarAnulacionFel(p: Pago) {
     if (this.felEnCurso.has(p.idpagos)) return;
     this.felEnCurso.add(p.idpagos);
     this.svc.anularFel(p.idpagos).subscribe({
-      next: () => { this.felEnCurso.delete(p.idpagos); showSuccess('Recibo electrónico anulado ante SAT'); this.refrescar(p.idpagos); },
+      next: r => {
+        this.felEnCurso.delete(p.idpagos);
+        const mal = r.resultados.filter(x => !x.anulado);
+        if (mal.length) showAlert('Anulación incompleta', `Sin anular ante SAT: ${this.erroresFel(mal)}`, 'error');
+        else showSuccess('Documentos electrónicos anulados ante SAT');
+        this.refrescar(p.idpagos);
+      },
       error: e => {
         this.felEnCurso.delete(p.idpagos);
         showAlert('No se anuló ante SAT', e?.error?.message || 'Error al comunicarse con el certificador', 'error');
@@ -285,11 +365,54 @@ export class PagosPage implements OnInit, OnDestroy {
     if (this.detalle?.idpagos === idpagos) this.abrirDetalle(this.detalle, this.detalleTab);
   }
 
-  private mensajeFel(f: ResultadoFel | null): string {
-    if (!f) return '';
-    return f.certificado
-      ? ` Recibo electrónico SAT certificado: serie ${f.serie}, No. ${f.numero}.`
-      : ` No se certificó el recibo electrónico: ${f.error}. Puede reintentarlo desde el listado.`;
+  // ─── Confirmación del pago registrado ───
+  get registradoPendientes() { return this.registrado ? porCertificar(this.registrado.documentos) : []; }
+
+  emitirFelRegistrado() {
+    const r = this.registrado;
+    if (!r || r.emitiendo || !this.registradoPendientes.length) return;
+    r.emitiendo = true;
+    this.svc.certificarFel(r.id).subscribe({
+      next: x => {
+        r.emitiendo = false;
+        for (const res of x.resultados) {
+          const d = r.documentos.find(o => o.tipo === res.tipo);
+          if (!d) continue;
+          if (res.certificado) Object.assign(d, { estado: 'Certificado', serie: res.serie, numero: res.numero, uuid: res.uuid, mensaje: null });
+          else Object.assign(d, { estado: 'Error', mensaje: res.error });
+        }
+        this.load();
+        if (r.correoPendiente && !this.registradoPendientes.length) this.enviarCorreoRegistrado(r);
+      },
+      error: e => {
+        r.emitiendo = false;
+        const mensaje = e?.error?.message || 'Error al comunicarse con el certificador';
+        for (const d of porCertificar(r.documentos)) Object.assign(d, { estado: 'Error', mensaje });
+        this.load();
+      },
+    });
+  }
+
+  cerrarRegistrado() {
+    const r = this.registrado;
+    if (!r || r.emitiendo) return;
+    this.registrado = null;
+    if (r.correoPendiente) this.enviarCorreoRegistrado(r, true);
+  }
+
+  /** Envía el comprobante retenido; `aviso` = el modal ya se cerró, el resultado va en un toast. */
+  private enviarCorreoRegistrado(r: PagoRegistrado, aviso = false) {
+    r.correoPendiente = false;
+    this.svc.notificar(r.id).subscribe({
+      next: x => {
+        r.correo = { enviado: true, destinatarios: x.destinatarios };
+        if (aviso) showSuccess(`Comprobante enviado a ${x.destinatarios.join(', ')}`);
+      },
+      error: e => {
+        r.correo = { enviado: false, error: e?.error?.message || 'No se pudo enviar el comprobante' };
+        if (aviso) showError(`No se envió el comprobante por correo: ${r.correo.error}`);
+      },
+    });
   }
 
   // ═════════════ Cobro ═════════════
@@ -302,7 +425,6 @@ export class PagosPage implements OnInit, OnDestroy {
       marcados: new Set(), exonerar: new Set(),
       idpadres: null, pagador_nombre: '', pagador_nit: 'CF', forma_pago: 'Efectivo', referencia: '', observaciones: '',
       notificar: this.correoHabilitado && !!this.config.colegio()?.notificar_pago,
-      emitir_fel: this.felHabilitado && !!this.config.colegio()?.fel_emitir_pago,
     };
     this.nitConsultado = '';
     if (sel) this.elegir(sel);
@@ -456,7 +578,9 @@ export class PagosPage implements OnInit, OnDestroy {
     const sel = (c?.pendientes?.cargos ?? []).filter(x => c!.marcados.has(x.idinscripciones_cargos));
     const subtotal = sel.reduce((s, x) => s + x.monto, 0);
     const mora = sel.reduce((s, x) => s + this.moraLinea(x), 0);
-    return { cuotas: sel.length, subtotal, mora, total: subtotal + mora };
+    // Con FEL: el recibo lleva las cuotas que emiten recibo; la factura, la mora y las demás cuotas
+    const recibo = sel.reduce((s, x) => s + (x.emite_recibo ? x.monto : 0), 0);
+    return { cuotas: sel.length, subtotal, mora, total: subtotal + mora, recibo, factura: subtotal + mora - recibo };
   }
 
   get pideReferencia() { return this.cobro?.forma_pago !== 'Efectivo'; }
@@ -474,27 +598,27 @@ export class PagosPage implements OnInit, OnDestroy {
     if (this.pideReferencia && !c.referencia.trim()) { this.error = `Indique el ${this.etiquetaReferencia.toLowerCase()}.`; return; }
     if (!c.fecha_pago || c.fecha_pago > this.hoy) { this.error = 'La fecha de pago no puede ser futura.'; return; }
 
+    const notificar = this.correoHabilitado && c.notificar;
+    // Con FEL habilitado el correo se envía desde la confirmación, después de decidir si se emiten los documentos electrónicos
+    const correoPendiente = notificar && this.felHabilitado;
     this.saving = true;
     this.svc.create({
       fecha_pago: c.fecha_pago, idpadres: c.idpadres, pagador_nombre: c.pagador_nombre, pagador_nit: c.pagador_nit,
       forma_pago: c.forma_pago, referencia: c.referencia, observaciones: c.observaciones,
       cargos: [...c.marcados].map(id => ({ idinscripciones_cargos: id, exonerar_mora: c.exonerar.has(id) })),
-      notificar: this.correoHabilitado && c.notificar,
-      emitir_fel: this.felHabilitado && c.emitir_fel,
+      notificar: notificar && !correoPendiente,
     }).subscribe({
-      next: async r => {
+      next: r => {
         this.saving = false;
+        const docs = r.documentos ?? [];
+        const totalDoc = (t: TipoDocumentoFel) => docs.find(d => d.tipo === t)?.total ?? 0;
+        this.registrado = {
+          total_recibo: totalDoc('RECI'), total_factura: totalDoc('FACT'),
+          id: r.id, numero: r.numero, total: r.total, pagador_nombre: c.pagador_nombre, pagador_nit: c.pagador_nit || 'CF',
+          documentos: docs, emitiendo: false, correoPendiente, correo: r.correo,
+        };
         this.cerrarCobro();
         this.load();
-        const aviso = !r.correo ? ''
-          : r.correo.enviado ? ` Comprobante enviado a ${r.correo.destinatarios?.join(', ')}.`
-          : ` No se envió el comprobante por correo: ${r.correo.error}`;
-        const ver = await confirmSuccessChoice(
-          `Recibo No. ${this.numero(r.numero)}`,
-          `Pago registrado por ${this.q(r.total)}.${this.mensajeFel(r.fel)}${aviso}`,
-          'Imprimir recibo', 'Cerrar',
-        );
-        if (ver) this.verRecibo(r.id);
       },
       error: e => {
         this.saving = false;

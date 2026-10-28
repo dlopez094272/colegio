@@ -30,3 +30,9 @@ backend/public/files/
 
 # Expediente privado de estudiantes (no público)
 backend/storage/
+
+# Paquete de despliegue
+/deploy/
+
+# Build de Angular copiado para producción
+backend/public/browser/

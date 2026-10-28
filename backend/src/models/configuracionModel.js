@@ -22,7 +22,7 @@ const CAMPOS_FEL = [
   'fel_habilitado', 'fel_certificador', 'fel_certificador_nit', 'fel_usuario', 'fel_alias',
   'fel_url_firma', 'fel_url_certificacion', 'fel_url_anulacion', 'fel_url_firma_anulacion',
   'fel_nit_emisor', 'fel_nombre_emisor', 'fel_nombre_comercial', 'fel_codigo_establecimiento', 'fel_afiliacion_iva',
-  'fel_codigo_postal', 'fel_frases', 'fel_emitir_pago', 'fel_activar_log', 'nit_consulta_url',
+  'fel_codigo_postal', 'fel_frases', 'fel_frases_factura', 'fel_emitir_pago', 'fel_activar_log', 'nit_consulta_url',
 ];
 const CAMPOS = [...CAMPOS_GENERALES, ...CAMPOS_CONTRATO, ...CAMPOS_CORREO, ...CAMPOS_FEL];
 /** Columnas cifradas (AES-256-GCM): nunca se devuelven al cliente. */

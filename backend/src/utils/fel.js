@@ -6,24 +6,32 @@ const { fail } = require('./transaccion');
 const { postJson, postForm, getJson } = require('./httpPost');
 
 /**
- * Recibo electrónico SAT (FEL, documento tipo RECI) de un pago.
+ * Documentos electrónicos SAT (FEL) de un pago. Un pago puede llevar dos:
+ *   RECI → recibo: solo cuotas con emite_recibo (inscripción y colegiatura,
+ *          lo único que SAT permite documentar con recibo a un centro educativo).
+ *          No lleva impuestos: cada línea viaja solo con su total.
+ *   FACT → factura: la mora (recargo calculado por el sistema) de todas las
+ *          líneas y las cuotas sin emite_recibo. Con afiliación GEN lleva el
+ *          IVA incluido en el precio; un pequeño contribuyente (PEQ) emite FPEQ.
  *
  * Mismo mecanismo que la factura de SMABI: se arma el XML del DTE, el
  * certificador lo firma y luego lo certifica. Certificadores soportados:
  *   INFILE    → firma: multipart (llave = token, alias)
  *               certificación/anulación: JSON con headers Usuario + Llave
  *   GRUPO CDS → firma y certificación: JSON con header apiKey (token)
- * El recibo no lleva impuestos: cada línea viaja solo con su total.
  */
 
 const CERTIFICADORES = ['INFILE', 'GRUPO CDS'];
+const TIPOS = ['RECI', 'FACT'];
+const NOMBRE = { RECI: 'el recibo electrónico', FACT: 'la factura electrónica' };
+const TASA_IVA = 0.12;
 
 // ─── Configuración ───────────────────────────────────────────
 
 /** Configuración FEL con las credenciales descifradas. Lanza 400 si falta algo. */
 async function configuracion({ anulacion = false } = {}) {
   const c = await ConfiguracionModel.get();
-  if (!c.fel_habilitado) throw fail(400, 'El recibo electrónico (FEL) no está habilitado en Configuración');
+  if (!c.fel_habilitado) throw fail(400, 'Los documentos electrónicos (FEL) no están habilitados en Configuración');
   if (!CERTIFICADORES.includes(c.fel_certificador)) throw fail(400, 'Seleccione el certificador FEL en Configuración');
   const cfg = {
     ...c,
@@ -69,6 +77,8 @@ function esc(v) {
 }
 
 const monto = n => Number(n || 0).toFixed(2);
+const redondear = (n, d = 2) => Math.round(Number(n) * 10 ** d) / 10 ** d;
+const mayuscula = s => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** Mensaje legible de una respuesta del firmador o del certificador. */
 function mensajeRespuesta(r, porDefecto) {
@@ -86,6 +96,7 @@ function sinXml(r) {
   return resto;
 }
 
+/** tipo: RECI | FACT | ANUL-RECI | ANUL-FACT */
 async function log({ idusuarios, idpagos, tipo, exito, xml, firma, respuesta }) {
   const s = v => (v === undefined || v === null ? null : typeof v === 'object' ? JSON.stringify(v) : String(v));
   try {
@@ -108,15 +119,38 @@ function frasesXml(frases) {
         </dte:Frases>`;
 }
 
-/** Una línea por cuota y otra por su mora (si se cobró). */
-function lineasRecibo(detalle) {
+/**
+ * Líneas del documento a partir del detalle del pago:
+ *   RECI → el monto de cada cuota con emite_recibo
+ *   FACT → el monto de cada cuota sin emite_recibo y la mora cobrada de todas
+ */
+function lineasDocumento(detalle, tipo) {
   const out = [];
   for (const d of detalle) {
     const quien = `${d.estudiante} (${[d.grado, d.seccion].filter(Boolean).join(' ')}, ${d.codigo})`;
-    out.push({ descripcion: `${d.concepto} — ${quien}`, total: Number(d.monto_pagado) });
-    if (Number(d.mora_pagada) > 0) out.push({ descripcion: `Mora por pago tardío: ${d.concepto} — ${quien}`, total: Number(d.mora_pagada) });
+    const recibo = !!Number(d.emite_recibo);
+    if (tipo === 'RECI' ? recibo : !recibo) out.push({ descripcion: `${d.concepto} — ${quien}`, total: Number(d.monto_pagado) });
+    if (tipo === 'FACT' && Number(d.mora_pagada) > 0) out.push({ descripcion: `Mora por pago tardío: ${d.concepto} — ${quien}`, total: Number(d.mora_pagada) });
   }
   return out;
+}
+
+/** Tipo de DTE con que se emite el documento: la factura de un pequeño contribuyente es FPEQ. */
+const tipoDte = (cfg, tipo) => (tipo === 'RECI' ? 'RECI' : cfg.fel_afiliacion_iva === 'PEQ' ? 'FPEQ' : 'FACT');
+
+/**
+ * Montos de cada línea. Solo la factura (FACT) lleva impuestos: con afiliación
+ * GEN el IVA va incluido en el precio; exenta (EXE) se declara con IVA 0.
+ */
+function calcularLineas(cfg, dte, lineas) {
+  const conImpuesto = dte === 'FACT';
+  const gravada = conImpuesto && cfg.fel_afiliacion_iva !== 'EXE';
+  return lineas.map(l => {
+    const total = redondear(l.total);
+    if (!conImpuesto) return { ...l, total };
+    const gravable = gravada ? redondear(total / (1 + TASA_IVA), 6) : total;
+    return { ...l, total, impuesto: { codigo: gravada ? 1 : 2, gravable, monto: redondear(total - gravable, 6) } };
+  });
 }
 
 function direccionXml(etiqueta, { direccion, postal, municipio, departamento }) {
@@ -129,10 +163,10 @@ function direccionXml(etiqueta, { direccion, postal, municipio, departamento }) 
           </dte:${etiqueta}>`;
 }
 
-/** XML del DTE tipo RECI (esquema FEL 0.2.0). */
-function xmlRecibo(cfg, pago, detalle, { emision, receptor: rec, correoReceptor }) {
-  const lineas = lineasRecibo(detalle);
+/** XML del DTE (esquema FEL 0.2.0): recibo (RECI) o factura (FACT / FPEQ). Las líneas vienen de calcularLineas. */
+function xmlDocumento(cfg, pago, lineas, { dte, emision, receptor: rec, correoReceptor }) {
   const total = lineas.reduce((s, l) => s + Math.round(l.total * 100), 0) / 100;
+  const iva = redondear(lineas.reduce((s, l) => s + (l.impuesto?.monto || 0), 0), 6);
   const items = lineas.map((l, i) => `
           <dte:Item BienOServicio="S" NumeroLinea="${i + 1}">
             <dte:Cantidad>1</dte:Cantidad>
@@ -140,28 +174,41 @@ function xmlRecibo(cfg, pago, detalle, { emision, receptor: rec, correoReceptor 
             <dte:Descripcion>${esc(l.descripcion)}</dte:Descripcion>
             <dte:PrecioUnitario>${monto(l.total)}</dte:PrecioUnitario>
             <dte:Precio>${monto(l.total)}</dte:Precio>
-            <dte:Descuento>0.00</dte:Descuento>
+            <dte:Descuento>0.00</dte:Descuento>${l.impuesto ? `
+            <dte:Impuestos>
+              <dte:Impuesto>
+                <dte:NombreCorto>IVA</dte:NombreCorto>
+                <dte:CodigoUnidadGravable>${l.impuesto.codigo}</dte:CodigoUnidadGravable>
+                <dte:MontoGravable>${l.impuesto.gravable.toFixed(6)}</dte:MontoGravable>
+                <dte:MontoImpuesto>${l.impuesto.monto.toFixed(6)}</dte:MontoImpuesto>
+              </dte:Impuesto>
+            </dte:Impuestos>` : ''}
             <dte:Total>${monto(l.total)}</dte:Total>
           </dte:Item>`).join('');
+  const totalImpuestos = dte === 'FACT' ? `
+          <dte:TotalImpuestos>
+            <dte:TotalImpuesto NombreCorto="IVA" TotalMontoImpuesto="${iva.toFixed(6)}"/>
+          </dte:TotalImpuestos>` : '';
   const correoEmisor = cfg.email ? ` CorreoEmisor="${esc(cfg.email)}"` : '';
   const correoRec = correoReceptor ? ` CorreoReceptor="${esc(correoReceptor)}"` : '';
   const nombreReceptor = rec.id === 'CF' && !pago.pagador_nombre ? 'Consumidor Final' : pago.pagador_nombre;
+  const frases = dte === 'RECI' ? cfg.fel_frases : cfg.fel_frases_factura;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <dte:GTDocumento xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:dte="http://www.sat.gob.gt/dte/fel/0.2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Version="0.1" xsi:schemaLocation="http://www.sat.gob.gt/dte/fel/0.2.0">
   <dte:SAT ClaseDocumento="dte">
     <dte:DTE ID="DatosCertificados">
       <dte:DatosEmision ID="DatosEmision">
-        <dte:DatosGenerales CodigoMoneda="GTQ" FechaHoraEmision="${emision}" Tipo="RECI"/>
+        <dte:DatosGenerales CodigoMoneda="GTQ" FechaHoraEmision="${emision}" Tipo="${dte}"/>
         <dte:Emisor AfiliacionIVA="${esc(cfg.fel_afiliacion_iva || 'GEN')}" CodigoEstablecimiento="${esc(cfg.fel_codigo_establecimiento || '1')}"${correoEmisor} NITEmisor="${esc(cfg.nit_emisor)}" NombreComercial="${esc(cfg.nombre_comercial)}" NombreEmisor="${esc(cfg.nombre_emisor)}">
           ${direccionXml('DireccionEmisor', { direccion: cfg.direccion, postal: cfg.fel_codigo_postal, municipio: cfg.municipio, departamento: cfg.departamento })}
         </dte:Emisor>
         <dte:Receptor${correoRec} IDReceptor="${esc(rec.id)}" NombreReceptor="${esc(nombreReceptor)}"${rec.cui ? ' TipoEspecial="CUI"' : ''}>
           ${direccionXml('DireccionReceptor', { direccion: 'Ciudad' })}
-        </dte:Receptor>${frasesXml(cfg.fel_frases)}
+        </dte:Receptor>${frasesXml(frases)}
         <dte:Items>${items}
         </dte:Items>
-        <dte:Totales>
+        <dte:Totales>${totalImpuestos}
           <dte:GranTotal>${monto(total)}</dte:GranTotal>
         </dte:Totales>
       </dte:DatosEmision>
@@ -174,18 +221,18 @@ function xmlRecibo(cfg, pago, detalle, { emision, receptor: rec, correoReceptor 
 </dte:GTDocumento>`;
 }
 
-function xmlAnulacion(cfg, pago, fechaAnulacion) {
+function xmlAnulacion(cfg, pago, doc, fechaAnulacion) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <dte:GTAnulacionDocumento xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:dte="http://www.sat.gob.gt/dte/fel/0.1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Version="0.1">
   <dte:SAT>
     <dte:AnulacionDTE ID="DatosCertificados">
       <dte:DatosGenerales ID="DatosAnulacion"
-        NumeroDocumentoAAnular="${esc(pago.fel_uuid)}"
+        NumeroDocumentoAAnular="${esc(doc.uuid)}"
         NITEmisor="${esc(cfg.nit_emisor)}"
-        IDReceptor="${esc(pago.fel_id_receptor || 'CF')}"
-        FechaEmisionDocumentoAnular="${esc(pago.fel_fecha_emision)}"
+        IDReceptor="${esc(doc.id_receptor || 'CF')}"
+        FechaEmisionDocumentoAnular="${esc(doc.fecha_emision)}"
         FechaHoraAnulacion="${fechaAnulacion}"
-        MotivoAnulacion="${esc((pago.motivo_anulacion || 'Anulación del recibo').substring(0, 255))}"/>
+        MotivoAnulacion="${esc((pago.motivo_anulacion || 'Anulación del pago').substring(0, 255))}"/>
     </dte:AnulacionDTE>
   </dte:SAT>
 </dte:GTAnulacionDocumento>`;
@@ -207,7 +254,8 @@ async function firmar(cfg, xml, identificador, esAnulacion) {
   return { firmado: r?.xmlSigned || null, respuesta: r };
 }
 
-async function enviarCertificacion(cfg, firmado, identificador, idpagos) {
+/** `numero`: referencia interna del documento para GRUPO CDS (idpagos_fel, única por documento). */
+async function enviarCertificacion(cfg, firmado, identificador, numero) {
   if (cfg.fel_certificador === 'INFILE') {
     const r = await postJson(cfg.fel_url_certificacion,
       { nit_emisor: cfg.nit_emisor, correo_copia: cfg.email || '', xml_dte: firmado },
@@ -215,7 +263,7 @@ async function enviarCertificacion(cfg, firmado, identificador, idpagos) {
     return { respuesta: r, ok: Number(r?.numero) > 0, serie: r?.serie, numero: r?.numero, uuid: r?.uuid };
   }
   const r = await postJson(cfg.fel_url_certificacion,
-    { dte: { nit_transmitter: cfg.nit_emisor, serie: cfg.nit_emisor, number: idpagos, xml_dte: firmado } }, { apiKey: cfg.token });
+    { dte: { nit_transmitter: cfg.nit_emisor, serie: cfg.nit_emisor, number: numero, xml_dte: firmado } }, { apiKey: cfg.token });
   return { respuesta: r, ok: Number(r?.number) > 0, serie: r?.serie, numero: r?.number, uuid: r?.uuid };
 }
 
@@ -233,39 +281,48 @@ async function enviarAnulacion(cfg, firmado, identificador) {
 
 // ─── Operaciones ─────────────────────────────────────────────
 
+const documento = (pago, tipo) => pago.documentos.find(d => d.tipo === tipo) || null;
+
 /**
- * Certifica el recibo electrónico de un pago vigente. Si falla queda con
- * fel_estado = 'Error' y el mensaje del certificador, y se puede reintentar.
- * @returns {{ serie, numero, uuid }}
+ * Certifica un documento (RECI o FACT) de un pago vigente. Si falla queda con
+ * estado 'Error' y el mensaje del certificador, y se puede reintentar.
+ * @returns {{ tipo, dte, serie, numero, uuid, total, iva }}
  */
-async function certificarPago(idpagos, idusuarios) {
+async function certificarDocumento(idpagos, tipo, idusuarios) {
+  if (!TIPOS.includes(tipo)) throw fail(400, 'Tipo de documento no válido');
   const cfg = await configuracion();
   const pago = await PagoModel.findById(idpagos);
   if (!pago) throw fail(404, 'Pago no encontrado');
-  if (pago.estado !== 'Activo') throw fail(409, 'El recibo está anulado');
-  if (pago.fel_estado === 'Certificado') throw fail(409, 'El recibo electrónico ya fue certificado');
+  if (pago.estado !== 'Activo') throw fail(409, 'El pago está anulado');
+  const doc = documento(pago, tipo);
+  if (!doc) throw fail(409, `El pago no lleva ${NOMBRE[tipo]}`);
+  if (doc.estado === 'Certificado') throw fail(409, `Ya se certificó ${NOMBRE[tipo]} de este pago`);
 
-  // Bloqueo: evita certificar dos veces el mismo pago si se pide a la vez
+  // Bloqueo: evita certificar dos veces el mismo documento si se pide a la vez
   // (un 'Procesando' de más de 2 minutos se considera interrumpido).
-  if (!(await PagoModel.felTomar(idpagos))) throw fail(409, 'El recibo electrónico se está certificando en este momento');
+  const idpagosFel = await PagoModel.felTomar(idpagos, tipo);
+  if (!idpagosFel) throw fail(409, `${mayuscula(NOMBRE[tipo])} se está certificando en este momento`);
 
-  const identificador = `RECI-${idpagos}`;
+  const identificador = `${tipo}-${idpagos}`;
+  const dte = tipoDte(cfg, tipo);
   const rec = receptor(pago.pagador_nit);
   const emision = fechaHoraGT();
-  let xml = null, firma = null, cert = null;
+  let xml = null, firma = null, cert = null, lineas = [];
   const error = async (mensaje) => {
-    await PagoModel.felEstado(idpagos, 'Error', mensaje);
-    await log({ idusuarios, idpagos, tipo: 'RECI', exito: false, xml, firma, respuesta: cert?.respuesta ?? null });
+    await PagoModel.felEstado(idpagos, tipo, 'Error', mensaje);
+    await log({ idusuarios, idpagos, tipo, exito: false, xml, firma, respuesta: cert?.respuesta ?? null });
     return fail(502, mensaje);
   };
 
   try {
     const [detalle, padre] = await Promise.all([PagoModel.detalle(idpagos), pago.idpadres ? PagoModel.padre(pago.idpadres) : null]);
-    xml = xmlRecibo(cfg, pago, detalle, { emision, receptor: rec, correoReceptor: padre?.email || null });
+    lineas = calcularLineas(cfg, dte, lineasDocumento(detalle, tipo));
+    if (!lineas.length) throw await error(`El pago no tiene líneas para ${NOMBRE[tipo]}`);
+    xml = xmlDocumento(cfg, pago, lineas, { dte, emision, receptor: rec, correoReceptor: padre?.email || null });
     const f = await firmar(cfg, xml, identificador, false);
     firma = f.respuesta;
     if (!f.firmado) throw await error(`Error de firma: ${mensajeRespuesta(firma, 'sin respuesta del firmador')}`);
-    cert = await enviarCertificacion(cfg, f.firmado, identificador, idpagos);
+    cert = await enviarCertificacion(cfg, f.firmado, identificador, idpagosFel);
   } catch (e) {
     if (e.status) throw e;
     throw await error(`No se pudo comunicar con el certificador: ${e.message}`);
@@ -273,41 +330,47 @@ async function certificarPago(idpagos, idusuarios) {
 
   if (!cert.ok) throw await error(mensajeRespuesta(cert.respuesta, 'El certificador rechazó el documento'));
 
-  const r = { serie: String(cert.serie ?? ''), numero: String(cert.numero ?? ''), uuid: String(cert.uuid ?? '') };
-  await PagoModel.felCertificado(idpagos, {
+  const r = {
+    tipo, dte, serie: String(cert.serie ?? ''), numero: String(cert.numero ?? ''), uuid: String(cert.uuid ?? ''),
+    total: redondear(lineas.reduce((s, l) => s + l.total, 0)),
+    iva: redondear(lineas.reduce((s, l) => s + (l.impuesto?.monto || 0), 0)),
+  };
+  await PagoModel.felCertificado(idpagos, tipo, {
     ...r, fecha_emision: emision, id_receptor: rec.id,
     mensaje: mensajeRespuesta(cert.respuesta, 'Certificado').substring(0, 499),
   });
-  if (cfg.fel_activar_log) await log({ idusuarios, idpagos, tipo: 'RECI', exito: true, xml, firma, respuesta: cert.respuesta });
+  if (cfg.fel_activar_log) await log({ idusuarios, idpagos, tipo, exito: true, xml, firma, respuesta: cert.respuesta });
   return r;
 }
 
 /**
- * Anula ante SAT el recibo electrónico de un pago ya anulado en el sistema.
+ * Anula ante SAT un documento certificado de un pago ya anulado en el sistema.
  * Si falla queda 'Error al anular' para reintentarlo.
  */
-async function anularPago(idpagos, idusuarios) {
+async function anularDocumento(idpagos, tipo, idusuarios) {
   const pago = await PagoModel.findById(idpagos);
   if (!pago) throw fail(404, 'Pago no encontrado');
-  if (pago.estado !== 'Anulado') throw fail(409, 'Primero anule el recibo');
-  if (!['Certificado', 'Error al anular'].includes(pago.fel_estado) || !pago.fel_uuid)
-    throw fail(409, 'El recibo no tiene un documento electrónico certificado');
+  if (pago.estado !== 'Anulado') throw fail(409, 'Primero anule el pago');
+  const doc = documento(pago, tipo);
+  if (!doc || !['Certificado', 'Error al anular'].includes(doc.estado) || !doc.uuid)
+    throw fail(409, `No hay ${NOMBRE[tipo]} certificado que anular`);
   const cfg = await configuracion({ anulacion: true });
 
-  const identificador = `ANUL-${idpagos}`;
+  const identificador = `ANUL-${tipo}-${idpagos}`;
+  const tipoLog = `ANUL-${tipo}`;
   // La anulación no puede tener fecha anterior a la emisión
   let fecha = fechaHoraGT();
-  if (pago.fel_fecha_emision && fecha < pago.fel_fecha_emision) fecha = pago.fel_fecha_emision;
+  if (doc.fecha_emision && fecha < doc.fecha_emision) fecha = doc.fecha_emision;
 
   let xml = null, firma = null, resp = null;
   const error = async (mensaje) => {
-    await PagoModel.felEstado(idpagos, 'Error al anular', mensaje);
-    await log({ idusuarios, idpagos, tipo: 'ANUL', exito: false, xml, firma, respuesta: resp });
+    await PagoModel.felEstado(idpagos, tipo, 'Error al anular', mensaje);
+    await log({ idusuarios, idpagos, tipo: tipoLog, exito: false, xml, firma, respuesta: resp });
     return fail(502, mensaje);
   };
 
   try {
-    xml = xmlAnulacion(cfg, pago, fecha);
+    xml = xmlAnulacion(cfg, pago, doc, fecha);
     const f = await firmar(cfg, xml, identificador, true);
     firma = f.respuesta;
     if (!f.firmado) throw await error(`Error de firma de la anulación: ${mensajeRespuesta(firma, 'sin respuesta del firmador')}`);
@@ -319,8 +382,8 @@ async function anularPago(idpagos, idusuarios) {
     throw await error(`No se pudo comunicar con el certificador: ${e.message}`);
   }
 
-  await PagoModel.felEstado(idpagos, 'Anulado', mensajeRespuesta(resp, 'Documento anulado'));
-  if (cfg.fel_activar_log) await log({ idusuarios, idpagos, tipo: 'ANUL', exito: true, xml, firma, respuesta: resp });
+  await PagoModel.felEstado(idpagos, tipo, 'Anulado', mensajeRespuesta(resp, 'Documento anulado'));
+  if (cfg.fel_activar_log) await log({ idusuarios, idpagos, tipo: tipoLog, exito: true, xml, firma, respuesta: resp });
   return { anulado: true };
 }
 
@@ -345,4 +408,7 @@ async function consultarNit(nit) {
   return { nit: n, nombre: String(nombre).trim(), direccion: String(r.data.address || r.data.direccion || '').trim() };
 }
 
-module.exports = { CERTIFICADORES, certificarPago, anularPago, consultarNit, xmlRecibo, fechaHoraGT };
+module.exports = {
+  CERTIFICADORES, TIPOS, NOMBRE, TASA_IVA, certificarDocumento, anularDocumento, consultarNit,
+  lineasDocumento, calcularLineas, tipoDte, xmlDocumento, fechaHoraGT,
+};

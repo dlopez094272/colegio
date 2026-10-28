@@ -74,7 +74,7 @@ const CuotaModel = {
   async ciclo(ciclo) {
     const [[config], [montos]] = await Promise.all([
       pool.query(
-        `SELECT ${CC_COLS}, c.cuota, c.periodicidad, c.obligatoria, c.activo AS cuota_activa,
+        `SELECT ${CC_COLS}, c.cuota, c.periodicidad, c.obligatoria, c.emite_recibo, c.activo AS cuota_activa,
                 (SELECT COUNT(*) FROM cuotas_grados cg WHERE cg.idcuotas_ciclos = cc.idcuotas_ciclos) AS total_grados
            FROM cuotas_ciclos cc
            JOIN cuotas c ON c.idcuotas = cc.idcuotas

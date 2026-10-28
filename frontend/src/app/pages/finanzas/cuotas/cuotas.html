@@ -47,6 +47,7 @@
           <th>Cuota</th>
           <th>Cobro</th>
           <th>Tipo</th>
+          <th>Documento SAT</th>
           <th>Ciclos</th>
           <th>Estado</th>
         </tr>
@@ -63,11 +64,14 @@
             <td>
               @if (c.obligatoria) { <span class="chip">Obligatoria</span> } @else { <span class="chip accent">Opcional</span> }
             </td>
+            <td>
+              @if (c.emite_recibo) { <span class="badge info">Recibo</span> } @else { <span class="badge neutral">Factura</span> }
+            </td>
             <td>{{ c.total_ciclos || 0 }}</td>
             <td>@if (c.activo) { <span class="badge success">Activa</span> } @else { <span class="badge danger">Inactiva</span> }</td>
           </tr>
         } @empty {
-          <tr><td colspan="6"><div class="empty-state"><p>No hay cuotas registradas.</p></div></td></tr>
+          <tr><td colspan="7"><div class="empty-state"><p>No hay cuotas registradas.</p></div></td></tr>
         }
       </tbody>
     </table>
@@ -494,6 +498,15 @@
           <span class="switch-slider"></span>
           <span class="switch-label">Obligatoria
             <span class="switch-desc">{{ f.obligatoria ? 'La pagan todos los estudiantes de los grados donde aplica' : 'Opcional: solo la pagan los estudiantes que la tomen (ej. bus, almuerzo)' }}</span>
+          </span>
+        </label>
+        <label class="switch-wrap">
+          <input type="checkbox" name="emite_recibo" [checked]="f.emite_recibo === 1" (change)="f.emite_recibo = $any($event.target).checked ? 1 : 0"/>
+          <span class="switch-slider"></span>
+          <span class="switch-label">Emite recibo electrónico
+            <span class="switch-desc">{{ f.emite_recibo
+              ? 'Se documenta con recibo electrónico SAT (solo inscripción y colegiatura)'
+              : 'Se documenta con factura electrónica SAT (libros, uniformes, bus y otros cobros)' }}. La mora siempre se factura.</span>
           </span>
         </label>
         <div class="field" style="max-width:180px">
