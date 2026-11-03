@@ -469,7 +469,7 @@ export class PagosPage implements OnInit, OnDestroy {
     this.cobro.exonerar = new Set();
   }
 
-  /** Trae las cuotas pendientes con la mora a la fecha de pago. `inicial` sugiere pagador y marca las vencidas. */
+  /** Trae las cuotas pendientes con la mora a la fecha de pago. `inicial` sugiere pagador; no marca cuotas (las elige el usuario). */
   cargarPendientes(inicial = false) {
     const c = this.cobro;
     if (!c?.seleccion || !c.fecha_pago) return;
@@ -488,7 +488,6 @@ export class PagosPage implements OnInit, OnDestroy {
           if (!c.seleccion!.nombre) c.seleccion!.nombre = d.cargos[0]?.estudiante ?? 'Estudiante';
           const p = d.pagadores[0];
           if (p) this.elegirPagador(p);
-          this.marcar('vencidas');
         }
       },
       error: e => { c.cargando = false; showError(e?.error?.message || 'No se pudieron cargar las cuotas pendientes'); },
