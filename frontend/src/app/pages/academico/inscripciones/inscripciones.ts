@@ -14,7 +14,7 @@ import { BitacoraTabComponent } from '../../../shared/bitacora-tab/bitacora-tab'
 import { ThSortComponent, ThSortChangeEvent, SortDir } from '../../../shared/th-sort/th-sort';
 import { EstadoCuentaComponent } from '../../../shared/estado-cuenta/estado-cuenta';
 import { readStateFromUrl, syncStateToUrl } from '../../../shared/utils/url-state.util';
-import { abrirBlob, descargarBlob } from '../../../shared/utils/blob.util';
+import { abrirBlob, cerrarVentana, descargarBlob, ventanaPendiente } from '../../../shared/utils/blob.util';
 
 type Tab = 'resumen' | 'cuenta' | 'contrato' | 'bitacora';
 
@@ -389,10 +389,10 @@ export class InscripcionesPage implements OnInit, OnDestroy {
           : ` No se pudo enviar el aviso por correo (${r.correo.error}); puede reenviarlo desde el menú de la inscripción.`;
         const ver = await confirmSuccessChoice(
           `Inscripción ${r.codigo}`,
-          `${f.estudiante!.nombre_completo} quedó inscrito con ${r.cargos} cuota(s) en su estado de cuenta.${aviso} ¿Descargar el contrato para firmar?`,
-          'Descargar contrato', 'Ahora no',
+          `${f.estudiante!.nombre_completo} quedó inscrito con ${r.cargos} cuota(s) en su estado de cuenta.${aviso} ¿Abrir el contrato para imprimirlo?`,
+          'Abrir contrato', 'Ahora no',
         );
-        if (ver) this.descargarContrato({ idinscripciones: r.id, codigo: r.codigo } as Inscripcion);
+        if (ver) this.verContrato({ idinscripciones: r.id });
       },
       error: e => { this.saving = false; this.error = e?.error?.message || 'Error al inscribir.'; },
     });
@@ -442,11 +442,12 @@ export class InscripcionesPage implements OnInit, OnDestroy {
   }
 
   // ─── Contrato ───
-  verContrato(r: Inscripcion) {
+  verContrato(r: Pick<Inscripcion, 'idinscripciones'>) {
     this.abriendo = 'contrato';
+    const w = ventanaPendiente();
     this.svc.contratoPdf(r.idinscripciones).subscribe({
-      next: b => { this.abriendo = ''; abrirBlob(b); },
-      error: () => { this.abriendo = ''; showError('No se pudo generar el contrato'); },
+      next: b => { this.abriendo = ''; abrirBlob(b, w); },
+      error: () => { this.abriendo = ''; cerrarVentana(w); showError('No se pudo generar el contrato'); },
     });
   }
 
@@ -460,9 +461,10 @@ export class InscripcionesPage implements OnInit, OnDestroy {
 
   verFirmado(r: Inscripcion, descargar = false) {
     this.abriendo = 'firmado';
+    const w = descargar ? null : ventanaPendiente();
     this.svc.contratoFirmado(r.idinscripciones).subscribe({
-      next: b => { this.abriendo = ''; descargar ? descargarBlob(b, r.contrato_nombre || `Contrato firmado ${r.codigo}`) : abrirBlob(b); },
-      error: () => { this.abriendo = ''; showError('No se pudo abrir el contrato firmado'); },
+      next: b => { this.abriendo = ''; descargar ? descargarBlob(b, r.contrato_nombre || `Contrato firmado ${r.codigo}`) : abrirBlob(b, w); },
+      error: () => { this.abriendo = ''; cerrarVentana(w); showError('No se pudo abrir el contrato firmado'); },
     });
   }
 
